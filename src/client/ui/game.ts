@@ -10,12 +10,17 @@ import type { Update } from '../../session.ts';
 import { unlock } from '../audio/engine.ts';
 import { music } from '../audio/music.ts';
 import { sfx, type Sfx } from '../audio/sfx.ts';
-import { look, saveLook, type Look } from '../look.ts';
+import { look, saveLook, themeSelect, type Look } from '../look.ts';
+import { BOARD_THEMES, isBoardTheme } from '../render/board-themes.ts';
 import { loadBoard, loadDice, type BoardRenderer, type DiceRenderer, type TemplateKind } from '../render/renderer.ts';
 import { confetti, cutIn } from '../render/fx.ts';
 import { CARD_SKIN, TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 import { esc } from './dom.ts';
+import { icon } from './icons.ts';
+import '../arena.css';
+import '../atlas.css';
+import '../spirit.css';
 
 export interface Conn {
   send(a: Action): void;
@@ -38,6 +43,7 @@ export class GameScreen {
   private canRoll = false;
   private waiting = false; // an action was sent, wait for the answer
   private aiming?: string; // card being targeted
+  private autoMove?: ReturnType<typeof setTimeout>;
   private conn: Conn;
   private keyHandler = (e: KeyboardEvent) => {
     if (e.code === 'Space' && this.canRoll) (e.preventDefault(), this.send({ type: 'roll' }));
@@ -50,18 +56,33 @@ export class GameScreen {
     this.el.className = 'game';
     this.el.innerHTML = `
       <header class="topbar">
-        <button class="btn ghost" data-leave aria-label="Về menu">←<span class="lbl"> Menu</span></button>
+        <button class="btn ghost" data-leave aria-label="Về menu">${icon('back')}<span class="lbl"> Menu</span></button>
+        <div class="arena-brand arena-only">${icon('star')} Cờ Cá Ngựa</div>
         <div class="status" aria-live="polite"></div>
         <button class="btn ghost icon" data-sfx></button>
         <button class="btn ghost icon" data-music></button>
-        <button class="btn ghost icon" data-look title="Giao diện: bản đồ & xúc xắc" aria-label="Giao diện">🎨</button>
-        <button class="btn ghost" data-help aria-label="Luật chơi">?<span class="lbl"> Luật</span></button>
+        <button class="btn ghost icon" data-look title="Giao diện" aria-label="Giao diện">${icon('layers')}</button>
+        <button class="btn ghost" data-help aria-label="Luật chơi">${icon('book')}<span class="lbl"> Luật</span></button>
       </header>
       <div class="table"><div class="grid">
-        <div class="panel-slot s0"></div><div class="panel-slot s1"></div>
-        <div class="board-slot"></div>
-        <div class="dock"><div class="dice-slot"></div><button class="btn" data-pass hidden>Bỏ lượt</button></div>
-        <div class="panel-slot s3"></div><div class="panel-slot s2"></div>
+        <div class="arena-stage">
+          <div class="arena-heading arena-only"><h1>Đảo trên mây</h1><span data-variant></span></div>
+          <div class="board-slot"></div>
+        </div>
+        <div class="arena-rail">
+          <div class="dock">
+            <div class="turn-portrait arena-only"><span>Lượt hiện tại</span><strong data-turn-name></strong></div>
+            <div class="roll-well"><div class="dice-slot"></div>
+              <button class="roll-button arena-only" data-roll disabled>Đổ xúc xắc <kbd>Space</kbd></button>
+              <button class="btn" data-pass hidden>Bỏ lượt</button>
+            </div>
+          </div>
+          <section class="roster">
+            <header class="roster-title arena-only"><h2>Kỵ sĩ</h2><span data-round></span></header>
+            <div class="panel-slot s0"></div><div class="panel-slot s1"></div>
+            <div class="panel-slot s2"></div><div class="panel-slot s3"></div>
+          </section>
+        </div>
       </div></div>
       <div class="overlay" hidden></div>`;
     host.appendChild(this.el);
@@ -72,11 +93,13 @@ export class GameScreen {
     this.el.querySelector<HTMLButtonElement>('[data-help]')!.onclick = () => this.showHelp();
     this.el.querySelector<HTMLButtonElement>('[data-look]')!.onclick = () => this.showLook();
     this.el.querySelector<HTMLButtonElement>('[data-pass]')!.onclick = () => this.send({ type: 'pass' });
+    this.el.querySelector<HTMLButtonElement>('[data-roll]')!.onclick = () => this.canRoll && this.send({ type: 'roll' });
     addEventListener('keydown', this.keyHandler);
     this.setupSound();
   }
 
   destroy() {
+    clearTimeout(this.autoMove);
     removeEventListener('keydown', this.keyHandler);
     music.play(false);
     this.tasks = [];
@@ -89,9 +112,9 @@ export class GameScreen {
     const sfxBtn = this.el.querySelector<HTMLButtonElement>('[data-sfx]')!;
     const musicBtn = this.el.querySelector<HTMLButtonElement>('[data-music]')!;
     const paint = () => {
-      sfxBtn.textContent = sfx.enabled ? '🔊' : '🔇';
+      sfxBtn.innerHTML = icon(sfx.enabled ? 'sound' : 'mute');
       sfxBtn.title = sfx.enabled ? 'Tắt hiệu ứng âm thanh' : 'Bật hiệu ứng âm thanh';
-      musicBtn.textContent = '🎵';
+      musicBtn.innerHTML = icon('music');
       musicBtn.style.opacity = music.enabled ? '1' : '.45';
       musicBtn.title = music.enabled ? 'Tắt nhạc nền' : 'Bật nhạc nền';
       sfxBtn.setAttribute('aria-label', sfxBtn.title);
@@ -149,17 +172,26 @@ export class GameScreen {
   }
 
   private async swap(l: Look) {
-    const needBoard = l.board !== this.shown.board;
+    const needBoard = l.board !== this.shown.board || (l.board === '2d' && l.theme !== this.shown.theme);
     const needDice = l.dice !== this.shown.dice;
     if (!needBoard && !needDice) return;
+    if (this.board && this.dice) this.lockInput();
     const before = this.status.innerHTML;
     if ((needBoard && l.board === '3d') || (needDice && l.dice === '3d')) this.say('Đang tải giao diện 3D…');
-    const [makeBoard, makeDice] = await Promise.all([needBoard && loadBoard(l.board), needDice && loadDice(l.dice)]);
+    const [makeBoard, makeDice] = await Promise.all([needBoard && loadBoard(l.board, l.theme), needDice && loadDice(l.dice)]);
     if (makeBoard) {
       this.board?.destroy();
       this.board = makeBoard(this.el.querySelector('.board-slot')!);
       this.board.onHop = () => sfx.play('hop');
       this.el.classList.toggle('full-board', !!this.board.fullTable);
+      const layered = !this.board.fullTable && l.theme !== 'original';
+      this.el.dataset.theme = this.board.fullTable ? '3d' : l.theme;
+      this.el.classList.toggle('arena-game', layered && l.theme !== 'atlas');
+      this.el.classList.toggle('atlas-game', layered && l.theme === 'atlas');
+      this.el.querySelector('.arena-heading h1')!.textContent = l.theme === 'atlas' ? 'Tinh bàn' : BOARD_THEMES[l.theme];
+      this.el.querySelector('.arena-brand')!.innerHTML = icon('star') + (l.theme === 'atlas' ? ' Thiên Mã' : ' Cờ Cá Ngựa');
+      const anchor = this.el.querySelector(layered ? '.roll-well' : '[data-sfx]')!;
+      anchor.before(this.status);
       if (this.s) {
         this.board.build(this.s);
         this.board.setTurn(this.s.phase === 'over' ? -1 : seatOf(this.s, this.s.turn));
@@ -262,7 +294,9 @@ export class GameScreen {
   }
 
   private lockInput() {
+    clearTimeout(this.autoMove);
     this.canRoll = false;
+    this.el.querySelector<HTMLButtonElement>('[data-roll]')!.disabled = true;
     this.dice.setReady(false, '');
     this.board.setPickable([]);
     this.el.querySelector<HTMLButtonElement>('[data-pass]')!.hidden = true;
@@ -288,12 +322,13 @@ export class GameScreen {
 
     if (s.phase === 'roll') {
       this.canRoll = true;
+      this.el.querySelector<HTMLButtonElement>('[data-roll]')!.disabled = false;
       this.dice.setReady(true, this.color(s.turn).main);
       this.say(`Lượt của <b>${this.name(s.turn)}</b> — bấm xúc xắc hoặc phím Space`);
     } else {
       const moves = acts.filter(a => a.type === 'move') as Extract<Action, { type: 'move' }>[];
       if (acts.length === 1 && moves.length === 1) {
-        setTimeout(() => this.send(moves[0]), 350); // only one choice: play it
+        this.autoMove = setTimeout(() => this.send(moves[0]), 350); // only one choice: play it
         return this.renderPanels();
       }
       this.board.setPickable(
@@ -317,6 +352,11 @@ export class GameScreen {
     const s = this.s;
     if (!s) return;
     const acts = this.conn.controls(s.turn) && !this.waiting && !this.busy ? legalActions(s) : [];
+    this.el.querySelector('[data-variant]')!.textContent = getVariant(s.variant).name;
+    this.el.querySelector('[data-round]')!.textContent = `Vòng ${String(s.round).padStart(2, '0')}`;
+    this.el.querySelector('[data-turn-name]')!.textContent = s.players[s.turn].name;
+    this.el.style.setProperty('--turn-color', this.color(s.turn).light);
+    this.el.dataset.turnSeat = String(seatOf(s, s.turn));
     this.panels.forEach(p => (p.innerHTML = ''));
     s.players.forEach((p, i) => {
       const c = seatColor(p.seat);
@@ -326,12 +366,13 @@ export class GameScreen {
       const panel = this.panels[p.seat];
       panel.innerHTML = `
         <div class="pcard ${s.turn === i && s.phase !== 'over' ? 'active' : ''} ${s.winner === i ? 'winner' : ''}" style="--c:${c.main};--l:${c.light};--d:${c.dark}">
-          <div class="avatar">${THEME.horseGlyph}</div>
+          <div class="avatar" data-seat="${p.seat}">${THEME.horseGlyph}</div>
           <div class="pinfo">
             <div class="pname">${esc(p.name)} ${p.frozen ? '<span title="Bị đóng băng">❄</span>' : ''}</div>
-            <div class="ptag">${tag} · 🐎 ${out}/4 · 🏁 ${home}/4</div>
+            <div class="ptag">${tag}</div>
             <div class="cards"></div>
           </div>
+          <div class="horse-stats"><span title="Đã xuất chuồng" aria-label="${out} ngựa đã xuất chuồng">${icon('hoof')}${out}/4</span><span title="Đã về đích" aria-label="${home} ngựa đã về đích">${icon('flag')}${home}/4</span></div>
         </div>`;
       const cardsEl = panel.querySelector('.cards')!;
       p.cards.forEach(card => {
@@ -374,7 +415,7 @@ export class GameScreen {
   /** In-game appearance picker: board and dice templates are chosen independently and applied live. */
   private showLook() {
     const o = this.el.querySelector<HTMLElement>('.overlay')!;
-    const seg = (name: keyof Look, label: string) => `
+    const seg = (name: 'board' | 'dice', label: string) => `
       <div class="look-row"><b>${label}</b><span class="seg" role="radiogroup" aria-label="${label}">${(['2d', '3d'] as TemplateKind[])
         .map(k => `<label><input type="radio" name="${name}" value="${k}" ${look[name] === k ? 'checked' : ''}>${k.toUpperCase()}</label>`)
         .join('')}</span></div>`;
@@ -383,17 +424,26 @@ export class GameScreen {
       <div class="modal look">
         <h2>🎨 Giao diện</h2>
         ${seg('board', 'Bản đồ')}
+        ${themeSelect()}
         ${seg('dice', 'Xúc xắc')}
         <p class="hint">Đổi ngay trong ván, không ảnh hưởng người chơi khác. 3D cần tải thêm lần đầu.</p>
         <div class="row"><button class="btn" data-close>Xong</button></div>
       </div>`;
     o.querySelectorAll<HTMLInputElement>('input[type=radio]').forEach(r =>
       (r.onchange = () => {
-        look[r.name as keyof Look] = r.value as TemplateKind;
+        look[r.name as 'board' | 'dice'] = r.value as TemplateKind;
+        o.querySelector<HTMLElement>('.theme-choice')!.hidden = look.board !== '2d';
         saveLook();
         this.setLook({ ...look });
       }),
     );
+    o.querySelector<HTMLSelectElement>('[data-theme-select]')!.onchange = e => {
+      const value = (e.currentTarget as HTMLSelectElement).value;
+      if (!isBoardTheme(value)) return;
+      look.theme = value;
+      saveLook();
+      this.setLook({ ...look });
+    };
     o.querySelector<HTMLButtonElement>('[data-close]')!.onclick = () => (o.hidden = true);
   }
 

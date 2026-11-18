@@ -1,0 +1,64 @@
+.theme-choice { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 10px 0; font-weight: 700; }
+.theme-choice[hidden] { display: none; }
+.theme-choice select { max-width: 66%; font: inherit; color: #29343b; background: #faf9f3; cursor: pointer; }
+
+.game[data-theme="spirit"] {
+  --ink: #e2e6dd; --edge: #677774; --paper: #172930; --display: Georgia, 'Times New Roman', serif;
+  color: #e2e6dd; font-family: system-ui, sans-serif;
+  background: linear-gradient(105deg, #0e1b251c, #101e262e 60%, #091a2147), #1c3239 url('/art/moon-pass.jpg') center / cover;
+}
+.game[data-theme="spirit"] .topbar { background: #12212aea; border-bottom: 1px solid #8a968465; }
+.game[data-theme="spirit"] .topbar .btn { border: 1px solid #9aa9a04a; color: #d6dfd5; background: transparent; }
+.game[data-theme="spirit"] .arena-brand { color: #ecdebf; font: 600 19px var(--display); }
+.game[data-theme="spirit"] .arena-brand .ui-icon { fill: #bd7266; stroke: #e6bb9e; }
+.game[data-theme="spirit"] .arena-heading { justify-content: space-between; padding: 0 3% 2px; }
+.game[data-theme="spirit"] .arena-heading h1 { color: #fff2db; font: 500 clamp(32px,3.3vw,47px)/1.1 var(--display); letter-spacing: -.035em; -webkit-text-stroke: 0; text-shadow: 0 2px 10px #0c1b22; }
+.game[data-theme="spirit"] .arena-heading span { background: #17292ed9; border: 1px solid #b6a88a77; border-radius: 2px; color: #ecd9af; box-shadow: none; font: 600 11px/1.3 system-ui; }
+.game[data-theme="spirit"] .board-slot { aspect-ratio: 648 / 680; }
+.game[data-theme="spirit"] .board > svg { filter: drop-shadow(0 12px 12px #08111688); }
+.spirit-stable-name { font: 600 11px system-ui,sans-serif; letter-spacing: 1.8px; }
+.spirit-step { font: 600 19px Georgia,serif; text-anchor: middle; }
+.track-sheet { filter: drop-shadow(0 5px 3px #050e1788); }
+.stables-sheet .stable.active > rect:first-child { stroke: #fae6c5; stroke-width: 3; }
+.track-sheet .lane.active rect { stroke-width: 1.8; }
+.game[data-theme="spirit"] .horse, .game[data-theme="spirit"] .avatar, .game[data-theme="spirit"] .turn-portrait { --sigil-hue: 0deg; }
+.game[data-theme="spirit"] [data-seat="0"], .game[data-theme="spirit"][data-turn-seat="0"] .turn-portrait { --sigil-hue: 158deg; }
+.game[data-theme="spirit"] [data-seat="1"], .game[data-theme="spirit"][data-turn-seat="1"] .turn-portrait { --sigil-hue: 46deg; }
+.game[data-theme="spirit"] [data-seat="2"], .game[data-theme="spirit"][data-turn-seat="2"] .turn-portrait { --sigil-hue: -28deg; }
+.game[data-theme="spirit"] [data-seat="3"], .game[data-theme="spirit"][data-turn-seat="3"] .turn-portrait { --sigil-hue: -124deg; }
+.game[data-theme="spirit"] .figure image, .game[data-theme="spirit"] .avatar::before, .game[data-theme="spirit"] .turn-portrait::after { filter: hue-rotate(var(--sigil-hue)); }
+.game[data-theme="spirit"] .horse .figure { animation: drift-sigil 3.3s ease-in-out infinite; filter: drop-shadow(0 2px 1px #0b1727bd); }
+.game[data-theme="spirit"] .horse.pickable .figure { filter: drop-shadow(0 0 3px var(--spirit)); }
+@keyframes drift-sigil { 50% { transform: translateY(-5px); } }
+.game[data-theme="spirit"] .dock, .game[data-theme="spirit"] .roster {
+  border: 1px solid #82938a68; border-radius: 6px; background: linear-gradient(130deg,#23343bf5,#14242df5); box-shadow: 0 8px 20px #06121950;
+}
+.game[data-theme="spirit"] .turn-portrait {
+  color: #f4ecdd; border-bottom: 1px solid #98a6984a; background: linear-gradient(90deg,#172a32f5,#20343c75), url('/art/moon-pass.jpg') 50% 70% / cover;
+}
+.game[data-theme="spirit"] .turn-portrait::after { background-image: url('/art/phantom-knight.svg'); width: 45%; top: 2%; right: 2%; bottom: -20%; transform: rotate(8deg); opacity: .93; }
+.game[data-theme="spirit"] .turn-portrait span, .game[data-theme="spirit"] .roster-title span { color: #dbbd99; }
+.game[data-theme="spirit"] .turn-portrait strong, .game[data-theme="spirit"] .roster-title h2 { font-family: var(--display); font-weight: 500; font-style: normal; }
+.game[data-theme="spirit"] .status { color: #dae0d7; }
+.game[data-theme="spirit"] .roll-button, .game[data-theme="spirit"] [data-pass] { color: #203038; border: 1px solid #cec8a9; background: #dcd2ac; box-shadow: 0 2px #7c7968; border-radius: 4px; font: 650 14px system-ui; }
+.game[data-theme="spirit"] .roll-button:disabled { background: #4d5c60; color: #dddfd6; border-color: #6e7e7c; }
+.game[data-theme="spirit"] .dice { border-color: #a2ae9d; background: #eae5d3; box-shadow: 0 3px #727e77; }
+.game[data-theme="spirit"] .dice.ready { animation: none; }
+.game[data-theme="spirit"] .dice span.on { background: #33444c; box-shadow: none; }
+.game[data-theme="spirit"] .roster-title span { background: transparent; }
+.game[data-theme="spirit"] .pcard { border-color: #87958b42; }
+.game[data-theme="spirit"] .pcard.active { background: linear-gradient(90deg,color-mix(in srgb,var(--c) 13%,transparent),transparent); box-shadow: inset 2px 0 var(--l); }
+.game[data-theme="spirit"] .avatar { background: #23343e; border-color: #82979188; border-radius: 3px; }
+.game[data-theme="spirit"] .avatar::before { inset: 0; background: url('/art/phantom-knight.svg') center / contain no-repeat; }
+.game[data-theme="spirit"] .ptag, .game[data-theme="spirit"] .horse-stats { color: #b2c0bd; }
+.game[data-theme="spirit"] .card-chip { background: #30434b; color: #f2e5cd; border: 1px solid #939d8c; box-shadow: none; }
+.game[data-theme="spirit"] .modal { color: #23323a; --ink: #34414a; background: #f1eddf; border: 2px solid #70827e; box-shadow: 0 8px 28px #0a1926aa; }
+.game[data-theme="spirit"] .modal .btn { background: #365953; color: #f5f0e3; }
+.game[data-theme="spirit"] .cutin { background: #20343cea; color: #f6e9cf; border-color: #aba58a; box-shadow: none; }
+.game[data-theme="spirit"] .cutin span { -webkit-text-stroke: 0; font: 600 19px var(--display); }
+@media (min-width: 761px) {
+  .game[data-theme="spirit"] .grid { --bs: clamp(325px,min(calc(100vw - 370px),calc(95dvh - 133px)),760px); gap: clamp(20px,4vw,60px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game[data-theme="spirit"] .horse .figure { animation: none; }
+}

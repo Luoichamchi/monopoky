@@ -9,7 +9,8 @@ import { ask, connect } from './net.ts';
 import { seatColor } from './render/theme.ts';
 import { unlock } from './audio/engine.ts';
 import { sfx } from './audio/sfx.ts';
-import { look, saveLook } from './look.ts';
+import { look, saveLook, themeSelect } from './look.ts';
+import { isBoardTheme } from './render/board-themes.ts';
 import type { TemplateKind } from './render/renderer.ts';
 import { GameScreen } from './ui/game.ts';
 import { esc, save, store } from './ui/dom.ts';
@@ -78,6 +79,7 @@ function menu() {
             <span class="seg" role="radiogroup" aria-label="Giao diện" title="Đặt cả bản đồ và xúc xắc. Trong ván bấm 🎨 để chỉnh riêng từng phần.">${(['2d', '3d'] as const)
               .map(k => `<label><input type="radio" name="look" value="${k}" ${look.board === k && look.dice === k ? 'checked' : ''}>${k.toUpperCase()}</label>`)
               .join('')}</span></h3>${variantPicker(prefs.variant)}
+          ${themeSelect()}
           <h3>Ghế ngồi</h3>
           <div class="seats">${seatEditor(prefs.seats, () => true)}</div>
           <p class="err" id="err" hidden></p>
@@ -99,9 +101,14 @@ function menu() {
     app.querySelectorAll<HTMLInputElement>('input[name=look]').forEach(r =>
       (r.onchange = () => {
         look.board = look.dice = r.value as TemplateKind; // preset; mix-and-match lives in the in-game 🎨 panel
+        $<HTMLElement>('.theme-choice').hidden = look.board !== '2d';
         saveLook();
       }),
     );
+    $<HTMLSelectElement>('[data-theme-select]').onchange = e => {
+      const value = (e.currentTarget as HTMLSelectElement).value;
+      if (isBoardTheme(value)) { look.theme = value; saveLook(); }
+    };
     $('#offline').onclick = () => {
       if (prefs.seats.filter(k => k !== 'off').length < 2) return void Object.assign($('#err'), { hidden: false, textContent: 'Cần ít nhất 2 ghế.' });
       offline();

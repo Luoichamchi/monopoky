@@ -208,43 +208,6 @@ button, input, select { font: inherit; color: inherit; }
 .card-chip.aiming { background: var(--sun); }
 @keyframes glow { to { box-shadow: 0 2px 0 var(--ink), 0 0 10px var(--sun); } }
 
-/* ---------- board (SVG) ---------- */
-.board { width: 100%; height: 100%; }
-.board svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 8px 0 var(--ink)); }
-.board svg * { transform-box: fill-box; transform-origin: center; }
-.board-bg { fill: var(--paper); stroke: var(--ink); stroke-width: 5; }
-.stable.off, .lane.off { opacity: .35; filter: grayscale(.6); }
-/* shared track stays quiet; a square lights up only while a horse stands on it */
-.cell { fill-opacity: .45; stroke: var(--ink); stroke-opacity: .14; stroke-width: 1.5; transition: fill-opacity .25s, stroke-opacity .25s; }
-.cell.start { fill-opacity: .9; stroke-opacity: .5; }
-.cell.occ { fill-opacity: 1; stroke-opacity: 1; stroke-width: 2.2; }
-/* home lanes are the visual focus; the current player's lane glows */
-.lane-bg { stroke: var(--ink); stroke-width: 3.5; }
-.lane.active .lane-bg { animation: laneglow 1s ease-in-out infinite alternate; }
-@keyframes laneglow { from { stroke: var(--ink); stroke-width: 3.5; } to { stroke: #fff; stroke-width: 6; } }
-.lane.active { filter: drop-shadow(0 0 7px var(--c)); }
-.cell-mark, .cell-num, .center-star, .horse-glyph, .tile-icon { text-anchor: middle; dominant-baseline: central; pointer-events: none; user-select: none; }
-.cell-mark { font-size: 22px; paint-order: stroke; stroke: var(--ink); stroke-width: 2px; }
-.cell-num { font-weight: 800; font-size: 18px; }
-.center-star { font-size: 58px; fill: #fff; stroke: var(--ink); stroke-width: 3px; paint-order: stroke; }
-.tile { animation: tilebob 2.2s ease-in-out infinite; opacity: .85; }
-.tile-bg { stroke: var(--ink); stroke-opacity: .3; stroke-width: 1.5; }
-@keyframes tilebob { 50% { transform: translateY(-2px) scale(1.06); } }
-.horse { cursor: default; }
-.horse .hbody { transform-origin: 50% 100%; }
-.horse-shadow { fill: var(--ink); opacity: .25; }
-.horse-glyph { font-size: 21px; fill: #fff; stroke: var(--ink); stroke-width: 1.6px; paint-order: stroke; }
-.horse .ring { fill: none; stroke: #fff; stroke-width: 4; stroke-dasharray: 8 6; opacity: 0; }
-.horse .bubble { fill: #7fd8ff44; stroke: #7fd8ff; stroke-width: 3; opacity: 0; transition: opacity .3s; }
-.horse.shielded .bubble { opacity: 1; animation: pulse 1.4s ease-in-out infinite; }
-.horse.pickable { cursor: pointer; }
-.horse.pickable .ring { opacity: 1; stroke: var(--ink); animation: spin 3s linear infinite; }
-.horse.pickable .hbody { animation: hopidle .7s ease-in-out infinite; }
-.horse.pickable:hover .hbody { animation-duration: .35s; }
-@keyframes hopidle { 50% { transform: translateY(-5px); } }
-@keyframes pulse { 50% { transform: scale(1.08); } }
-.marker { fill: none; stroke-width: 4; stroke-dasharray: 6 5; opacity: 0; pointer-events: none; transition: opacity .15s; }
-.marker.on { opacity: 1; animation: spin 2s linear infinite; }
 .sfx { font-family: var(--sfx); font-size: 40px; stroke: var(--ink); stroke-width: 6px; paint-order: stroke; letter-spacing: 1px; }
 
 /* ---------- dice ---------- */

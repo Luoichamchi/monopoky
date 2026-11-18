@@ -1,0 +1,173 @@
+@scope (.game[data-theme="atlas"]) {
+/* The board is a shallow engraved table with raised pieces and an independent ground plane. */
+.board, .board > svg { width: 100%; height: 100%; display: block; }
+.board > svg { overflow: visible; filter: drop-shadow(0 12px 10px #04071099); }
+.board .horse, .board .hbody, .board .fx * { transform-box: fill-box; transform-origin: center; }
+.board .hbody { transform-origin: center bottom; }
+.board .stable.off, .board .lane.off { opacity: .48; }
+.board .stable.active > path:first-child { stroke: #fae6b1; stroke-width: 3; }
+.board .lane.active rect:nth-of-type(even) { stroke-width: 1.8; }
+.board .stable-name { font: 600 12px/1 Georgia, serif; letter-spacing: 2.8px; text-anchor: middle; }
+.board .lane-number { font: 600 19px Georgia, serif; text-anchor: middle; }
+.projections, .board .fx, .board .marker, .board .horse { pointer-events: none; }
+.horse .figure { filter: drop-shadow(1px 2px 1px #080b16); }
+.horse[data-seat="0"] .figure, .avatar[data-seat="0"]::before { filter: sepia(.55) saturate(1.75) hue-rotate(291deg) drop-shadow(1px 1px 1px #241123); }
+.horse[data-seat="2"] .figure, .avatar[data-seat="2"]::before { filter: sepia(.65) saturate(1.65) hue-rotate(92deg) drop-shadow(1px 1px 1px #092720); }
+.horse[data-seat="3"] .figure, .avatar[data-seat="3"]::before { filter: sepia(.85) saturate(1.65) drop-shadow(1px 1px 1px #2a1e10); }
+.horse.pickable .figure, .horse-target.enabled { pointer-events: auto; cursor: pointer; }
+.horse-target { fill: transparent; pointer-events: none; }
+.horse-target:focus-visible { outline: none; stroke: #fff3cc; stroke-width: 2; stroke-dasharray: 3 3; }
+.horse .bubble { fill: #9de7ff33; stroke: #bfefff; stroke-width: 1.75; opacity: 0; }
+.horse.shielded .bubble { opacity: 1; }
+.pick-ring { opacity: 0; fill: none; stroke-width: 2.5; stroke-dasharray: 5 3; }
+.selectable .pick-ring { opacity: 1; animation: atlas-ring 1.4s linear infinite; }
+.horse.pickable .figure { animation: spirit-float 1.2s ease-in-out infinite; }
+.marker { fill: #fff0bb33; stroke-width: 3; stroke-dasharray: 5 3; opacity: 0; }
+.marker.on { opacity: 1; animation: atlas-ring 1.4s linear infinite; }
+@keyframes atlas-ring { to { stroke-dashoffset: -32; } }
+@keyframes spirit-float { 50% { transform: translateY(-4px); } }
+
+:scope {
+  --gold: #e2c892; --line: #c6aa773e; --cream: #f3ebd9; --muted: #b6bac8;
+  --display: 'Cormorant Garamond', Georgia, serif;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: var(--cream);
+  padding: 0; gap: 0; overflow: auto;
+  background: linear-gradient(180deg, #0a102073, #0c132636 72%, #101b3033), url('/art/tinh-son.jpg') center / cover, #151e32;
+}
+:scope .topbar {
+  max-width: none; padding: 0 clamp(16px, 4vw, 78px); min-height: 60px;
+  background: #101625db; border-bottom: 1px solid var(--line); gap: 8px;
+}
+:scope .topbar .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line);
+  border-radius: 6px; color: #dfdece; background: #ffffff04; box-shadow: none;
+  font: 500 13px/1 system-ui, sans-serif; min-height: 34px; min-width: 34px; padding: 6px 10px;
+}
+:scope .topbar .btn:hover { color: #fff3ce; background: #ffffff12; }
+:scope .topbar .ui-icon { width: 17px; height: 17px; }
+:scope .arena-brand {
+  display: flex; align-items: center; gap: 9px; margin-right: auto; margin-left: 9px; padding-left: 16px;
+  border-left: 1px solid var(--line); color: var(--gold); font: 600 22px/1 var(--display); letter-spacing: .035em;
+}
+:scope .arena-brand .ui-icon { height: 23px; width: 23px; }
+:scope .table { container-type: normal; flex: 1 0 auto; display: grid; align-items: center; }
+:scope .grid {
+  --bs: clamp(330px, min(calc(100vw - 405px), calc(100dvh - 153px)), 740px);
+  display: grid; height: auto; width: fit-content; max-width: 100%; margin: auto; padding: 16px 24px 28px;
+  grid-template: 'stage rail' auto / var(--bs) clamp(266px, 24vw, 334px);
+  gap: clamp(22px, 4vw, 72px); align-items: center;
+}
+.arena-stage { min-width: 0; }
+:scope .arena-stage { grid-area: stage; display: block; }
+:scope .arena-heading {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 0 2% 9px;
+}
+.arena-heading h1 { margin: 0; font: 500 clamp(30px, 3.1vw, 48px)/1.05 var(--display); letter-spacing: -.035em; color: var(--cream); -webkit-text-stroke: 0; text-shadow: none; }
+.arena-heading span, .roster-title span, .turn-portrait span {
+  font-size: 10px; font-weight: 650; letter-spacing: .15em; text-transform: uppercase;
+}
+.arena-heading span { color: var(--gold); display: inline-flex; align-items: center; gap: 9px; background: none; border: 0; box-shadow: none; padding: 0; }
+.arena-heading span::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
+:scope .board-slot { width: 100%; height: auto; aspect-ratio: 1; }
+:scope .arena-rail { grid-area: rail; display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+:scope .dock, :scope .roster {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: start; gap: 0;
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  background: linear-gradient(125deg, #222c41f2, #141c2df5); box-shadow: 0 10px 28px #03081138;
+}
+:scope .turn-portrait {
+  isolation: isolate; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 7px;
+  height: clamp(88px, 14vh, 138px); overflow: hidden; padding: 14px 46% 14px 20px; background:
+    linear-gradient(90deg, #273042, #25324975), url('/art/tinh-son.jpg') center 75% / cover;
+  border-bottom: 1px solid var(--line);
+}
+.turn-portrait::after {
+  content: ''; position: absolute; z-index: -1; width: 52%; right: -2%; top: -3%; bottom: -35%;
+  background: url('/art/linh-ma.png') center top / contain no-repeat;
+  filter: drop-shadow(-5px 3px 7px #13182a); transform: scaleX(-1);
+}
+.turn-portrait span { color: var(--gold); }
+.turn-portrait strong { font: 600 clamp(26px, 3vw, 40px)/1.1 var(--display); overflow-wrap: anywhere; }
+:scope .status {
+  text-align: left; flex: none; white-space: normal; overflow: visible; padding: 13px 18px 0;
+  font: 400 13px/1.5 inherit; font-family: inherit; font-size: 13px; font-weight: 400;
+  color: #d4d8e4; background: none; border: 0; border-radius: 0; box-shadow: none;
+}
+:scope .roll-well { display: flex; justify-content: start; align-items: center; padding: 14px 18px 18px; gap: 13px; }
+:scope .dice {
+  width: 46px; height: 46px; padding: 6px; border-radius: 10px; border: 1px solid #fff1c7;
+  background: linear-gradient(135deg, #fff5d9, #c0a572); box-shadow: 0 4px 0 #887452, 0 6px 10px #0007;
+}
+:scope .dice.ready { animation: none; box-shadow: 0 4px 0 #887452, 0 0 18px #edce8c40; }
+:scope .dice span { width: 6px; height: 6px; }
+:scope .dice span.on { background: #353949; box-shadow: inset 0 1px 1px #131a24; }
+:scope .dice3d { width: 64px; height: 64px; }
+:scope .roll-button, :scope [data-pass] {
+  display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 39px; padding: 8px 14px;
+  border: 1px solid #ead8ae; border-radius: 6px; background: linear-gradient(#ead4a7, #cbae77);
+  color: #252530; font: 650 13px/1.3 system-ui, sans-serif; cursor: pointer;
+}
+:scope .roll-button { flex: 1; }
+:scope .roll-button:disabled { opacity: .5; cursor: default; }
+:scope [data-pass][hidden], :scope .roll-well:has([data-pass]:not([hidden])) .roll-button { display: none; }
+.roll-button kbd { font: 500 10px/1.2 system-ui; border: 1px solid #39352d57; padding: 2px 4px; border-radius: 3px; }
+:scope .roster { padding: 0 14px 8px; }
+:scope .roster-title { display: flex; justify-content: space-between; align-items: center; padding: 14px 4px 8px; }
+.roster-title h2 { font: 600 26px/1 var(--display); margin: 0; }
+.roster-title span { color: var(--gold); background: none; }
+:scope .panel-slot { align-self: stretch; }
+:scope .pcard {
+  display: flex; align-items: center; padding: 8px 5px; gap: 10px; min-height: 55px; height: auto;
+  overflow: visible; border: 0; border-top: 1px solid #ffffff15; border-radius: 0; box-shadow: none;
+  background: transparent; transform: none; color: var(--cream);
+}
+:scope .pcard.active { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 13%, transparent), transparent); }
+:scope .avatar {
+  position: relative; border: 1px solid color-mix(in srgb, var(--c) 58%, #606579); border-radius: 9px;
+  width: 37px; height: 37px; background: radial-gradient(ellipse at bottom, color-mix(in srgb, var(--c) 45%, #293041), #1a2235);
+  color: transparent; text-shadow: none; animation: none; font-size: 0;
+}
+:scope .avatar::before { content: ''; position: absolute; inset: 2px; background: url('/art/linh-ma.png') center / contain no-repeat; }
+:scope .pinfo { flex: 1; min-width: 0; display: block; }
+:scope .pname { font: 650 14px/1.35 system-ui, sans-serif; }
+:scope .ptag, :scope .horse-stats { font-size: 11px; color: #bdc2d0; opacity: 1; }
+:scope .horse-stats { gap: 3px; }
+:scope .horse-stats .ui-icon { color: var(--l); }
+:scope .cards:empty { display: none; }
+:scope .card-chip { background: #414051; color: #ffedc9; border: 1px solid #9e906977; box-shadow: none; border-radius: 4px; }
+:scope .card-chip.aiming { background: #736444; }
+:scope .modal { background: #222c40; color: var(--cream); border: 1px solid #948162; box-shadow: 0 12px 50px #05091688; }
+:scope .modal .btn { background: #dbc18c; border: 1px solid #ebd3a3; color: #232532; text-shadow: none; box-shadow: none; }
+:scope .modal .seg { background: #171e30; border: 1px solid #887b60; box-shadow: none; }
+:scope .modal .seg label:has(input:checked) { background: #d8bd89; color: #242635; }
+:scope .cutin {
+  inset: auto auto 18px 50%; width: max-content; max-width: 95vw; height: auto; padding: 9px 22px;
+  translate: -50% 0; transform: none; background: #1c2437f5; border: 1px solid var(--gold); border-radius: 6px;
+}
+:scope .cutin span { font: 600 19px/1.2 var(--display); color: var(--cream); letter-spacing: 0; -webkit-text-stroke: 0; text-shadow: none; }
+@media (max-width: 760px) {
+  :scope .topbar { min-height: 52px; padding: 0 12px; gap: 5px; }
+  :scope .arena-brand { font-size: 19px; margin-left: 0; padding-left: 10px; }
+  :scope .grid { width: min(100%, 570px); padding: 14px 10px 22px; grid-template: 'stage' auto 'rail' auto / minmax(0,1fr); gap: 15px; }
+  :scope .arena-heading { padding-bottom: 6px; }
+  :scope .arena-rail { gap: 12px; }
+  :scope .dock { display: grid; grid-template: 'portrait controls' auto 'status status' auto / 1fr auto; align-items: center; }
+  :scope .turn-portrait { grid-area: portrait; min-width: 0; height: 70px; border: 0; padding: 8px 32% 8px 12px; }
+  :scope .turn-portrait::after { width: 42%; }
+  .turn-portrait strong { font-size: 22px; }
+  .turn-portrait span { font-size: 8px; }
+  :scope .roll-well { grid-area: controls; padding: 8px 10px; gap: 9px; }
+  :scope .roll-button { padding: 6px 10px; }
+  .roll-button kbd { display: none; }
+  :scope .status { grid-area: status; border-top: 1px solid var(--line); padding: 7px 12px; font-size: 12px; }
+  :scope .roster { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 12px; }
+  :scope .roster-title { grid-column: 1 / -1; }
+  :scope .roster .panel-slot { grid-area: auto; }
+  :scope .pcard { gap: 5px; padding-inline: 0; }
+  :scope .avatar { width: 30px; height: 34px; }
+  :scope .pname { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :scope .figure, :scope .pick-ring, :scope .marker.on { animation: none; }
+}
+}

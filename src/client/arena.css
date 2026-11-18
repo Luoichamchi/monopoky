@@ -1,0 +1,160 @@
+.ui-icon { width: 1.05em; height: 1.05em; vertical-align: -.15em; flex: none; }
+.arena-only { display: none; }
+.arena-stage, .arena-rail, .roster, .roll-well { display: contents; }
+.horse-stats { display: grid; gap: 2px; margin-left: auto; font: 600 .7rem/1.15 system-ui, sans-serif; white-space: nowrap; }
+.horse-stats span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* The terrain is projected by the renderer. Sprites stay upright in screen space. */
+.board, .board > svg { width: 100%; height: 100%; display: block; }
+.board > svg { overflow: visible; filter: drop-shadow(4px 14px 6px #43509755); }
+.board .horse, .board .hbody, .board .fx * { transform-box: fill-box; transform-origin: center; }
+.board .hbody { transform-origin: center bottom; }
+.board .stable.off, .board .lane.off { filter: saturate(.35); }
+.board .stable.active > polygon:last-of-type { stroke: #fff; stroke-width: 3; }
+.board .lane.active > polygon:last-of-type { stroke: var(--ink); stroke-width: 1.8; }
+.board .stable-name { font: 800 14px system-ui, sans-serif; letter-spacing: 2px; text-anchor: middle; }
+.board .lane-number { font: 800 21px system-ui, sans-serif; text-anchor: middle; }
+.projections, .board .fx, .board .marker, .board .horse { pointer-events: none; }
+.horse .figure { filter: drop-shadow(0 1px 0 #37315185); }
+[data-seat="0"], [data-turn-seat="0"] .turn-portrait { --mane-hue: 116deg; }
+[data-seat="2"], [data-turn-seat="2"] .turn-portrait { --mane-hue: -72deg; }
+[data-seat="3"], [data-turn-seat="3"] .turn-portrait { --mane-hue: 172deg; }
+.horse .figure image, .arena-game .avatar::before, .arena-game .turn-portrait::after { filter: hue-rotate(var(--mane-hue, 0deg)); }
+.horse.pickable .figure, .horse-target.enabled { pointer-events: auto; cursor: pointer; }
+.horse-target { fill: transparent; pointer-events: none; }
+.horse-target:focus-visible { outline: none; stroke: #fff3cc; stroke-width: 2; stroke-dasharray: 3 3; }
+.horse .bubble { fill: #9de7ff33; stroke: #bfefff; stroke-width: 1.75; opacity: 0; }
+.horse.shielded .bubble { opacity: 1; }
+.pick-ring { opacity: 0; fill: none; stroke-width: 2.5; stroke-dasharray: 5 3; }
+.selectable .pick-ring { opacity: 1; animation: arena-ring 1.4s linear infinite; }
+.horse.pickable .figure { animation: spirit-float 1.2s ease-in-out infinite; }
+.marker { fill: #fff0bb33; stroke-width: 3; stroke-dasharray: 5 3; opacity: 0; }
+.marker.on { opacity: 1; animation: arena-ring 1.4s linear infinite; }
+@keyframes arena-ring { to { stroke-dashoffset: -32; } }
+@keyframes spirit-float { 50% { transform: translateY(-4px); } }
+
+.arena-game {
+  --ink: #292344; --paper: #fffcf5; --edge: #302848;
+  padding: 0; gap: 0; overflow: auto; color: var(--ink); font-family: var(--font);
+  background: linear-gradient(100deg, #fbfcff0d, #e6f8ff33 58%, #fff1), #aee4fc url('/art/aozora.jpg') center / cover;
+}
+.arena-game .topbar {
+  min-height: 57px; max-width: none; padding: 0 clamp(14px, 3.5vw, 64px); gap: 7px;
+  color: #fff; background: #292644; border-bottom: 4px solid #ffcb63;
+}
+.arena-game .topbar .btn {
+  display: inline-flex; justify-content: center; align-items: center; gap: 7px; color: white;
+  border: 1px solid #ffffff44; background: #444060; border-radius: 7px; padding: 6px 10px;
+  font: 700 13px/1.1 system-ui, sans-serif; box-shadow: none; min-height: 33px; min-width: 33px;
+}
+.arena-game .topbar .btn:hover { background: #615780; }
+.arena-game .topbar .ui-icon { width: 17px; height: 17px; }
+.arena-game .arena-brand {
+  display: flex; align-items: center; gap: 8px; margin-right: auto; margin-left: 9px;
+  font: italic 800 22px/1 var(--font); color: #fff5c6;
+}
+.arena-brand .ui-icon { fill: #ffcc68; stroke: #ffcc68; }
+.arena-game .table { container-type: normal; flex: 1 0 auto; display: grid; align-items: center; }
+.arena-game .grid {
+  --bs: clamp(340px, min(calc(100vw - 390px), calc(128dvh - 165px)), 1030px);
+  height: auto; width: fit-content; max-width: 100%; margin: auto; padding: 14px 20px 16px;
+  grid-template: 'stage rail' auto / minmax(0,var(--bs)) clamp(244px,22vw,320px);
+  gap: clamp(12px,2vw,38px); align-items: center;
+}
+.arena-game .arena-stage { display: block; grid-area: stage; min-width: 0; }
+.arena-game .arena-heading { display: flex; gap: 12px; align-items: center; padding: 0 3%; flex-wrap: wrap; }
+.arena-heading h1 {
+  margin: 0; font: italic 800 clamp(29px,3.2vw,52px)/1.12 var(--font); color: #fff;
+  -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: 3px 4px var(--ink);
+}
+.arena-heading span, .roster-title span, .turn-portrait span { font: 800 11px/1.25 system-ui,sans-serif; }
+.arena-heading span { background: #ffdc77; color: #322541; padding: 5px 11px; border: 2px solid var(--ink); border-radius: 5px; box-shadow: 2px 2px var(--ink); }
+.arena-game .board-slot { width: 100%; height: auto; aspect-ratio: 868 / 651; }
+.arena-game .arena-rail { grid-area: rail; display: flex; min-width: 0; flex-direction: column; gap: 15px; }
+.arena-game .dock, .arena-game .roster {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: start; gap: 0;
+  background: var(--paper); border: 2.5px solid var(--edge); border-radius: 13px;
+  overflow: hidden; box-shadow: 4px 5px 0 #393355;
+}
+.arena-game .turn-portrait {
+  isolation: isolate; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  height: clamp(83px,13vh,128px); overflow: hidden; padding: 12px 45% 12px 16px;
+  background: repeating-linear-gradient(125deg,transparent 0 16px,#ffffff55 16px 19px,transparent 19px 28px),
+    linear-gradient(115deg,var(--turn-color,#ffd1e2) 62%,#fff 62% 64%,#8cdef2 64%);
+  border-bottom: 2px solid var(--edge);
+}
+.turn-portrait::after {
+  content: ''; position: absolute; z-index: -1; width: 52%; right: -1%; top: -10%; bottom: -47%;
+  background: url('/art/kaze.png') center top / contain no-repeat; transform: scaleX(-1);
+}
+.turn-portrait span { text-transform: uppercase; letter-spacing: .1em; }
+.turn-portrait strong { font: italic 800 clamp(23px,2.5vw,38px)/1.08 var(--font); overflow-wrap: anywhere; }
+.arena-game .status {
+  text-align: left; flex: none; white-space: normal; overflow: visible; padding: 11px 14px 0;
+  font: 500 13px/1.5 system-ui,sans-serif; color: #463d5e; background: none; border: 0; border-radius: 0; box-shadow: none;
+}
+.arena-game .roll-well { display: flex; align-items: center; padding: 12px 14px 16px; gap: 12px; }
+.arena-game .dice { width: 46px; height: 46px; padding: 5px; border-width: 2px; border-radius: 10px; box-shadow: 0 4px var(--ink); }
+.arena-game .dice.ready { box-shadow: 0 4px var(--ink), 0 0 0 3px var(--turn-color); }
+.arena-game .dice span { width: 7px; height: 7px; }
+.arena-game .dice3d { width: 64px; height: 64px; }
+.arena-game .roll-button, .arena-game [data-pass] {
+  display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 39px; padding: 7px 12px;
+  border: 2px solid var(--edge); border-radius: 7px; background: #ffcd57; box-shadow: 0 3px var(--edge);
+  color: var(--ink); font: 800 15px/1.2 var(--font); cursor: pointer;
+}
+.arena-game .roll-button { flex: 1; }
+.arena-game .roll-button:disabled { background: #eae8ee; color: #716b82; cursor: default; }
+.arena-game [data-pass][hidden], .arena-game .roll-well:has([data-pass]:not([hidden])) .roll-button { display: none; }
+.roll-button kbd { font: 600 10px/1.2 system-ui; border: 1px solid #6c5c57; padding: 2px 4px; border-radius: 3px; }
+.arena-game .roster { padding: 0 12px 6px; }
+.arena-game .roster-title { display: flex; justify-content: space-between; align-items: center; padding: 9px 2px; }
+.roster-title h2 { margin: 0; font: italic 800 24px/1.15 var(--font); }
+.roster-title span { border-radius: 3px; padding: 4px 7px; background: #eee9ff; color: #514480; }
+.arena-game .panel-slot { align-self: stretch; }
+.arena-game .pcard {
+  display: flex; align-items: center; padding: 7px 5px; gap: 9px; min-height: 49px; height: auto; overflow: visible;
+  border: 0; border-top: 1px solid #d9d4e3; border-radius: 0; box-shadow: none; background: none; transform: none;
+}
+.arena-game .pcard.active { background: linear-gradient(90deg,var(--l),transparent); box-shadow: inset 3px 0 var(--c); }
+.arena-game .avatar {
+  position: relative; border: 1.5px solid var(--d); border-radius: 8px; width: 37px; height: 37px;
+  background: var(--l); color: transparent; text-shadow: none; animation: none; font-size: 0; overflow: hidden;
+}
+.arena-game .avatar::before { content: ''; position: absolute; inset: -1px -3px -15px; background: url('/art/kaze.png') center top / cover no-repeat; }
+.arena-game .pinfo { flex: 1; min-width: 0; display: block; }
+.arena-game .pname { font: 750 14px/1.3 system-ui,sans-serif; }
+.arena-game .ptag, .arena-game .horse-stats { font: 500 11px/1.4 system-ui,sans-serif; color: #615975; }
+.arena-game .horse-stats { gap: 2px; }
+.arena-game .cards:empty { display: none; }
+.arena-game .card-chip { font-size: .8rem; }
+.arena-game .cutin {
+  inset: auto auto 15px 50%; width: max-content; max-width: 95vw; height: auto;
+  padding: 5px 20px; translate: -50% 0; border: 2px solid var(--ink); box-shadow: 3px 3px var(--ink);
+}
+.arena-game .cutin span { font: italic 800 20px/1.4 var(--font); -webkit-text-stroke: 2px var(--ink); }
+@media (max-width: 760px) {
+  .arena-game .topbar { min-height: 52px; padding: 0 12px; gap: 5px; }
+  .arena-game .arena-brand { font-size: clamp(14px,4vw,19px); white-space: nowrap; margin-left: 0; padding-left: 3px; }
+  .arena-game .grid { width: min(100%, 570px); padding: 14px 10px 22px; grid-template: 'stage' auto 'rail' auto / minmax(0,1fr); gap: 15px; }
+  .arena-game .arena-heading { padding-bottom: 6px; }
+  .arena-game .arena-rail { gap: 12px; }
+  .arena-game .dock { display: grid; grid-template: 'portrait controls' auto 'status status' auto / 1fr auto; align-items: center; }
+  .arena-game .turn-portrait { grid-area: portrait; min-width: 0; height: 70px; border: 0; padding: 8px 32% 8px 12px; }
+  .arena-game .turn-portrait::after { width: 42%; }
+  .turn-portrait strong { font-size: 22px; }
+  .turn-portrait span { font-size: 8px; }
+  .arena-game .roll-well { grid-area: controls; padding: 8px 10px; gap: 9px; }
+  .arena-game .roll-button { padding: 6px 10px; }
+  .roll-button kbd { display: none; }
+  .arena-game .status { grid-area: status; border-top: 1px solid #d9d4e3; padding: 7px 12px; font-size: 12px; }
+  .arena-game .roster { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 12px; }
+  .arena-game .roster-title { grid-column: 1 / -1; }
+  .arena-game .roster .panel-slot { grid-area: auto; }
+  .arena-game .pcard { gap: 5px; padding-inline: 0; }
+  .arena-game .avatar { width: 30px; height: 34px; }
+  .arena-game .pname { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arena-game .figure, .arena-game .pick-ring, .arena-game .marker.on { animation: none; }
+}
