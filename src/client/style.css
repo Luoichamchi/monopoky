@@ -1,0 +1,279 @@
+/* Anime pop theme. Colors per seat come from render/theme.ts via CSS vars (--c main, --l light, --d dark). */
+:root {
+  --ink: #2a1a4a;
+  --paper: #fffaf3;
+  --pink: #ff4d8d;
+  --cyan: #3fd3ff;
+  --sun: #ffd23f;
+  --violet: #9b6bff;
+  --font: 'Baloo 2', system-ui, sans-serif;
+  --sfx: 'Bangers', 'Baloo 2', sans-serif;
+  --pop: 0 5px 0 var(--ink);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: linear-gradient(160deg, #ffe0f0 0%, #e6dcff 45%, #cff4ff 100%);
+  overflow-x: hidden;
+}
+button, input, select { font: inherit; color: inherit; }
+
+/* ---------- ambient background (pure CSS: cheap, runs on the compositor) ---------- */
+.sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.rays {
+  position: absolute; left: 50%; top: 50%; width: 220vmax; height: 220vmax; margin: -110vmax;
+  background: repeating-conic-gradient(from 0deg, #ffffff55 0deg 8deg, transparent 8deg 20deg);
+  animation: spin 90s linear infinite;
+  mask-image: radial-gradient(circle, #000 0%, transparent 60%);
+}
+.sky::before, .sky::after {
+  content: '✦ ✧ ★ ✦ ✧ ✦ ★ ✧'; position: absolute; left: 0; right: 0; font-size: 28px; letter-spacing: 12vw;
+  color: #fff; text-shadow: 0 0 12px #ffb3d9; opacity: .8; animation: twinkle 4s ease-in-out infinite alternate;
+}
+.sky::before { top: 8%; }
+.sky::after { bottom: 6%; animation-delay: -2s; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes twinkle { from { opacity: .25; transform: translateY(0); } to { opacity: .9; transform: translateY(-10px); } }
+@media (prefers-reduced-motion: reduce) { .rays, .sky::before, .sky::after { animation: none; } }
+
+/* ---------- common widgets ---------- */
+.btn {
+  border: 3px solid var(--ink); border-radius: 14px; padding: 8px 18px; cursor: pointer; font-weight: 800;
+  background: linear-gradient(180deg, #ff7aa8, var(--pink)); color: #fff; box-shadow: var(--pop);
+  text-shadow: 0 2px 0 #0003; transition: transform .08s, box-shadow .08s;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+.btn.ghost { background: #fff; color: var(--ink); text-shadow: none; }
+.btn.big { font-size: 1.4rem; padding: 10px 28px; width: 100%; margin-top: 14px; }
+.btn:disabled { opacity: .5; cursor: default; transform: none; }
+:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.err { color: #d61f5b; min-height: 1.2em; margin: 6px 0 0; }
+
+/* ---------- menu / lobby: one screen, two columns on wide windows ---------- */
+.menu { height: 100dvh; padding: 16px; display: grid; place-items: center; overflow: auto; }
+.menu-grid { width: min(1060px, 100%); display: grid; grid-template-columns: 1fr 1.2fr; gap: 22px; align-items: center; }
+.menu-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.logo { display: flex; justify-content: center; gap: 12px; margin: 0; padding-top: .18em; font-family: var(--sfx); font-weight: 400; font-size: clamp(2.6rem, min(9vw, 11vh), 5.5rem); letter-spacing: 2px; line-height: 1; }
+.logo span {
+  color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill;
+  text-shadow: 5px 6px 0 var(--ink); display: inline-block; animation: bob 2.4s ease-in-out infinite;
+}
+.logo span:nth-child(1) { color: var(--pink); }
+.logo span:nth-child(2) { color: var(--cyan); animation-delay: -.8s; }
+.logo span:nth-child(3) { color: var(--sun); animation-delay: -1.6s; }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(3deg); } }
+.tagline { text-align: center; font-weight: 700; margin: 0; }
+.card { background: #fffffff0; border: 3px solid var(--ink); border-radius: 22px; padding: 14px 18px; box-shadow: 0 7px 0 var(--ink); min-width: 0; }
+.card h3 { margin: 10px 0 6px; line-height: 1.2; }
+.card h3:first-child { margin-top: 0; }
+.field { display: flex; flex-direction: column; font-weight: 700; gap: 4px; }
+.field input, .code, .link, select {
+  border: 3px solid var(--ink); border-radius: 12px; padding: 5px 10px; background: #fff;
+}
+.code { width: 8.5em; text-transform: uppercase; letter-spacing: 3px; font-weight: 800; text-align: center; }
+.link { flex: 1; min-width: 0; }
+.variants { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.variant { border: 3px solid var(--ink); border-radius: 16px; padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; background: #fff; transition: transform .15s; }
+.variant input { position: absolute; opacity: 0; pointer-events: none; }
+.variant.on { background: linear-gradient(135deg, #ffe3f0, #e3f6ff); box-shadow: 0 4px 0 var(--ink); transform: translateY(-2px); }
+.variant:has(input:focus-visible) { outline: 3px solid var(--violet); }
+.variant small { line-height: 1.25; }
+.seats { display: grid; gap: 7px; }
+.h-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.seg { display: inline-flex; border: 3px solid var(--ink); border-radius: 999px; overflow: hidden; font-size: .85rem; box-shadow: 0 3px 0 var(--ink); }
+.seg label { padding: 0 12px; cursor: pointer; font-weight: 800; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--violet); color: #fff; }
+.seg label:has(input:focus-visible) { outline: 3px solid var(--sun); outline-offset: -3px; }
+/* full-table layout (templates that draw their own dice): the board fills the table, panels float above */
+/* grid-area:auto + positioned grid → the slot covers the whole grid box, not just its 'board' cell */
+.full-board .grid { position: relative; }
+.full-board .board-slot { grid-area: auto; position: absolute; inset: 0; width: auto; height: auto; align-self: stretch; justify-self: stretch; }
+.full-board .panel-slot, .full-board .dock { position: relative; z-index: 1; pointer-events: none; }
+.full-board .pcard, .full-board .dock .btn { pointer-events: auto; }
+/* 3D board template */
+.board3d { position: relative; width: 100%; height: 100%; touch-action: none; }
+.board3d canvas { display: block; width: 100%; height: 100%; }
+.fx3d { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.fx3d * { transform-box: fill-box; transform-origin: center; }
+/* 3D dice template: its own little WebGL view */
+.dice3d { --c: var(--pink); width: 120px; height: 120px; padding: 0; border: 0; background: none; cursor: pointer; display: block; border-radius: 24px; }
+.dice3d canvas { display: block; width: 100%; height: 100%; }
+.dice3d:disabled { cursor: default; }
+.dice3d.ready { background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--c), transparent 60%), transparent 70%); }
+/* in-game appearance picker */
+.look .look-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; font-size: 1.1rem; }
+.look .seg { font-size: 1rem; }
+.look .hint { opacity: .8; font-size: .9rem; }
+.seat { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; padding: 4px 8px 4px 5px; border-radius: 14px; background: var(--l); border: 3px solid var(--ink); }
+.seat-dot { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: #fff; border: 3px solid var(--ink); font-size: 18px; }
+.seat-name { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-code { margin-left: .3em; font-family: var(--sfx); font-size: 2.4rem; letter-spacing: 4px; color: var(--pink); -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
+@media (max-width: 760px), (max-aspect-ratio: 1/1) {
+  .menu { place-items: start center; }
+  .menu-grid { grid-template-columns: 1fr; gap: 14px; max-width: 560px; }
+  .menu-grid > .card { order: 1; } /* phone: play card right under the logo, online last */
+  .menu-side { display: contents; }
+  .menu-side .card { order: 2; }
+  .tagline, .variant small { display: none; } /* description stays available as a tooltip */
+  .logo { font-size: clamp(2.4rem, 12vw, 3.4rem); }
+  .field { flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; }
+  .field input { flex: 1; min-width: 0; }
+  .variant { padding: 4px 8px; font-size: .92rem; white-space: nowrap; }
+  .seats { gap: 5px; }
+  .seat { padding-block: 2px; }
+  .card h3 { margin: 8px 0 4px; }
+  .row { flex-wrap: nowrap; }
+  .code { width: auto; flex: 1; min-width: 0; letter-spacing: 1px; }
+  .lobby .hint { display: none; }
+}
+@media (max-height: 820px) {
+  .card { padding: 10px 14px; }
+  .btn.big { margin-top: 10px; padding: 6px 20px; }
+  .variant small { font-size: .75rem; }
+  .seat-dot { width: 28px; height: 28px; font-size: 16px; }
+}
+
+/* ---------- game layout: everything inside one viewport ---------- */
+.game { height: 100dvh; display: flex; flex-direction: column; padding: 12px 16px 16px; gap: 10px; overflow: hidden; }
+.topbar { flex: none; width: 100%; max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 8px; }
+.topbar .btn { padding: 3px 12px; }
+.topbar .icon { padding: 3px 9px; min-width: 2.6em; }
+.status {
+  flex: 1; min-width: 0; text-align: center; font-weight: 700; background: #fff; border: 3px solid var(--ink); border-radius: 999px;
+  padding: 4px 14px; box-shadow: 0 4px 0 var(--ink); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* .table is the size container, .grid computes the board size from it (cq units resolve against the parent) */
+.table { flex: 1; min-height: 0; container-type: size; }
+.grid {
+  --gap: 10px; --ph: 60px; --dh: 80px;
+  --bs: min(100cqw, 100cqh - 2 * var(--ph) - var(--dh) - 3 * var(--gap));
+  height: 100%; display: grid; gap: var(--gap); justify-content: center; align-content: center;
+  grid-template-columns: repeat(2, calc(var(--bs) / 2 - var(--gap) / 2));
+  grid-template-rows: var(--ph) var(--bs) var(--ph) var(--dh);
+  grid-template-areas: 's0 s1' 'board board' 's3 s2' 'dock dock';
+}
+@media (min-aspect-ratio: 6/5) {
+  .grid {
+    --pw: clamp(170px, 18vw, 250px);
+    --bs: min(100cqh, 100cqw - 2 * var(--pw) - 2 * var(--gap));
+    grid-template-columns: var(--pw) var(--bs) var(--pw);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: 's0 board s1' 'dock board .' 's3 board s2';
+  }
+  .dock { flex-direction: column; }
+}
+.s0 { grid-area: s0; } .s1 { grid-area: s1; } .s2 { grid-area: s2; } .s3 { grid-area: s3; }
+.s2, .s3 { align-self: end; }
+.board-slot { grid-area: board; width: var(--bs); height: var(--bs); align-self: center; }
+.dock { grid-area: dock; display: flex; gap: 14px; align-items: center; justify-content: center; }
+@media (max-aspect-ratio: 6/5) {
+  .dice3d { width: 80px; height: 80px; }
+  .topbar { gap: 5px; }
+  .topbar .btn, .topbar .icon { padding: 2px 7px; min-width: 0; font-size: .9rem; }
+  .status { padding-inline: 8px; }
+  .card-chip small, .lbl { display: none; }
+  .status { font-size: .9rem; }
+  /* compact panels: name on line 1, stats + cards on line 2 */
+  .pcard { height: 100%; overflow: hidden; padding: 4px 6px; gap: 6px; }
+  .avatar { width: 34px; height: 34px; font-size: 20px; }
+  .pinfo { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 4px; align-items: center; }
+  .pname { grid-column: 1 / -1; font-size: .92rem; }
+  .ptag, .pname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cards { margin: 0; flex-wrap: nowrap; }
+  .card-chip { padding: 0 3px; font-size: .8rem; }
+}
+
+/* ---------- player panels ---------- */
+.pcard {
+  display: flex; gap: 8px; align-items: center; background: #fff; border: 3px solid var(--ink); border-radius: 18px;
+  padding: 6px 8px; box-shadow: 0 4px 0 var(--ink); transition: transform .2s, background .2s;
+}
+.pcard.active { background: linear-gradient(135deg, var(--l), #fff); transform: translateY(-3px) scale(1.02); box-shadow: 0 6px 0 var(--ink), 0 0 0 4px var(--c); }
+.pcard.active .avatar { animation: bob 1.2s ease-in-out infinite; }
+.pcard.winner { background: linear-gradient(135deg, #fff6b0, var(--l)); }
+.avatar { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 25px; color: #fff; background: radial-gradient(circle at 35% 30%, #fff, var(--c) 40%, var(--d)); border: 3px solid var(--ink); text-shadow: 0 2px 0 var(--ink); }
+.pinfo { min-width: 0; }
+.pname { font-weight: 800; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptag { font-size: .78rem; opacity: .85; }
+.cards { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+.card-chip { border: 2px solid var(--ink); border-radius: 10px; background: #fff7d6; padding: 0 6px; cursor: pointer; font-size: .9rem; box-shadow: 0 2px 0 var(--ink); }
+.card-chip small { font-weight: 700; }
+.card-chip:disabled { cursor: default; opacity: .7; box-shadow: none; }
+.card-chip:not(:disabled) { animation: glow 1s ease-in-out infinite alternate; }
+.card-chip.aiming { background: var(--sun); }
+@keyframes glow { to { box-shadow: 0 2px 0 var(--ink), 0 0 10px var(--sun); } }
+
+/* ---------- board (SVG) ---------- */
+.board { width: 100%; height: 100%; }
+.board svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 8px 0 var(--ink)); }
+.board svg * { transform-box: fill-box; transform-origin: center; }
+.board-bg { fill: var(--paper); stroke: var(--ink); stroke-width: 5; }
+.stable.off, .lane.off { opacity: .35; filter: grayscale(.6); }
+/* shared track stays quiet; a square lights up only while a horse stands on it */
+.cell { fill-opacity: .45; stroke: var(--ink); stroke-opacity: .14; stroke-width: 1.5; transition: fill-opacity .25s, stroke-opacity .25s; }
+.cell.start { fill-opacity: .9; stroke-opacity: .5; }
+.cell.occ { fill-opacity: 1; stroke-opacity: 1; stroke-width: 2.2; }
+/* home lanes are the visual focus; the current player's lane glows */
+.lane-bg { stroke: var(--ink); stroke-width: 3.5; }
+.lane.active .lane-bg { animation: laneglow 1s ease-in-out infinite alternate; }
+@keyframes laneglow { from { stroke: var(--ink); stroke-width: 3.5; } to { stroke: #fff; stroke-width: 6; } }
+.lane.active { filter: drop-shadow(0 0 7px var(--c)); }
+.cell-mark, .cell-num, .center-star, .horse-glyph, .tile-icon { text-anchor: middle; dominant-baseline: central; pointer-events: none; user-select: none; }
+.cell-mark { font-size: 22px; paint-order: stroke; stroke: var(--ink); stroke-width: 2px; }
+.cell-num { font-weight: 800; font-size: 18px; }
+.center-star { font-size: 58px; fill: #fff; stroke: var(--ink); stroke-width: 3px; paint-order: stroke; }
+.tile { animation: tilebob 2.2s ease-in-out infinite; opacity: .85; }
+.tile-bg { stroke: var(--ink); stroke-opacity: .3; stroke-width: 1.5; }
+@keyframes tilebob { 50% { transform: translateY(-2px) scale(1.06); } }
+.horse { cursor: default; }
+.horse .hbody { transform-origin: 50% 100%; }
+.horse-shadow { fill: var(--ink); opacity: .25; }
+.horse-glyph { font-size: 21px; fill: #fff; stroke: var(--ink); stroke-width: 1.6px; paint-order: stroke; }
+.horse .ring { fill: none; stroke: #fff; stroke-width: 4; stroke-dasharray: 8 6; opacity: 0; }
+.horse .bubble { fill: #7fd8ff44; stroke: #7fd8ff; stroke-width: 3; opacity: 0; transition: opacity .3s; }
+.horse.shielded .bubble { opacity: 1; animation: pulse 1.4s ease-in-out infinite; }
+.horse.pickable { cursor: pointer; }
+.horse.pickable .ring { opacity: 1; stroke: var(--ink); animation: spin 3s linear infinite; }
+.horse.pickable .hbody { animation: hopidle .7s ease-in-out infinite; }
+.horse.pickable:hover .hbody { animation-duration: .35s; }
+@keyframes hopidle { 50% { transform: translateY(-5px); } }
+@keyframes pulse { 50% { transform: scale(1.08); } }
+.marker { fill: none; stroke-width: 4; stroke-dasharray: 6 5; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.marker.on { opacity: 1; animation: spin 2s linear infinite; }
+.sfx { font-family: var(--sfx); font-size: 40px; stroke: var(--ink); stroke-width: 6px; paint-order: stroke; letter-spacing: 1px; }
+
+/* ---------- dice ---------- */
+.dice {
+  --c: var(--pink);
+  width: 64px; height: 64px; border-radius: 16px; border: 4px solid var(--ink); background: linear-gradient(145deg, #fff, var(--l, #ffe6f0));
+  box-shadow: 0 6px 0 var(--ink); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 8px; gap: 1px; cursor: pointer;
+}
+.dice span { border-radius: 50%; place-self: center; width: 11px; height: 11px; background: transparent; }
+.dice span.on { background: var(--c); box-shadow: inset 0 -2px 0 #0004, 0 0 0 2px var(--ink); }
+.dice.ready { animation: wiggle 1s ease-in-out infinite; box-shadow: 0 6px 0 var(--ink), 0 0 0 5px var(--c), 0 0 24px var(--c); }
+.dice:disabled { cursor: default; }
+@keyframes wiggle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) scale(1.06); } }
+
+/* ---------- overlays ---------- */
+.overlay { position: fixed; inset: 0; background: #2a1a4a88; display: grid; place-items: center; z-index: 20; padding: 16px; }
+.overlay[hidden] { display: none; }
+.modal { background: #fff; border: 4px solid var(--ink); border-radius: 24px; padding: 18px 22px; max-width: 560px; width: 100%; max-height: 90dvh; overflow: auto; box-shadow: 0 8px 0 var(--ink); }
+.modal h2 { margin: 0 0 6px; }
+.modal .row { justify-content: center; margin-top: 12px; }
+.win { text-align: center; background: linear-gradient(160deg, #fff, #fff4c2); }
+.trophy { font-size: 80px; animation: bob 1.6s ease-in-out infinite; }
+.rules li, .legend li { margin: 4px 0; }
+.legend { list-style: none; padding: 0; }
+.legend .ico { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ink); margin-right: 6px; background: #fff; }
+.cutin {
+  position: fixed; left: 0; right: 0; top: 40%; z-index: 15; pointer-events: none; height: 84px; display: grid; place-items: center; overflow: hidden;
+  background: repeating-linear-gradient(-60deg, var(--c) 0 26px, color-mix(in srgb, var(--c), #fff 25%) 26px 52px);
+  border-block: 5px solid var(--ink); transform: skewY(-4deg);
+}
+.cutin span { font-family: var(--sfx); font-size: clamp(2rem, 7vw, 3.4rem); color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 4px 5px 0 var(--ink); letter-spacing: 2px; white-space: nowrap; }
+.confetti { position: fixed; top: 0; width: 10px; height: 16px; z-index: 30; pointer-events: none; border: 2px solid var(--ink); border-radius: 3px; }
