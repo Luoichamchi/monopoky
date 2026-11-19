@@ -61,6 +61,43 @@ test('party: tiles are symmetric, shield blocks kicks', () => {
   assert.equal(target(s, a, 2), null);
 });
 
+test('party: freeze card locks one horse for its owner\'s next turn, not the whole turn', () => {
+  const s = two('party');
+  s.tiles = {}; // no tile side effects
+  const [a, b1, b2] = [s.horses[0], s.horses[4], s.horses[5]];
+  a.pos = 20; b1.pos = 10; b2.pos = 30;
+  s.players[0].cards = ['freeze'];
+  step(s, { type: 'card', card: 'freeze', target: b1.id }, seeded(1));
+  assert.equal(b1.frozen, 2);
+  s.dice = 1; s.phase = 'move';
+  step(s, { type: 'move', horse: a.id }, seeded(1)); // A ends turn → B's turn
+  assert.equal(s.turn, 1, 'B still gets a turn');
+  s.dice = 1; s.phase = 'move';
+  const moves = legalActions(s).filter(x => x.type === 'move').map(x => (x as { horse: number }).horse);
+  assert.ok(!moves.includes(b1.id), 'frozen horse cannot move');
+  assert.ok(moves.includes(b2.id), 'other horses can');
+  step(s, { type: 'move', horse: b2.id }, seeded(1)); // B → A
+  s.dice = 1; s.phase = 'move';
+  step(s, { type: 'move', horse: a.id }, seeded(1)); // A → B: thawed
+  assert.equal(b1.frozen, 0);
+});
+
+test('party: bomb kicks enemies within 2 squares, the horse that stops on it is safe', () => {
+  const s = two('party');
+  const bomb = 20;
+  s.tiles = { [bomb]: 'bomb' };
+  const rel = (seat: number, abs: number) => (abs - absOf(seat, 0) + 52) % 52;
+  const [a, b1, b2, b3] = [s.horses[0], s.horses[4], s.horses[5], s.horses[6]];
+  a.pos = rel(0, bomb) - 3;
+  b1.pos = rel(2, bomb + 1); b2.pos = rel(2, bomb + 2); b3.pos = rel(2, bomb + 3);
+  s.dice = 3; s.phase = 'move';
+  step(s, { type: 'move', horse: a.id }, seeded(1));
+  assert.equal(a.pos, rel(0, bomb), 'trigger horse stays on the bomb');
+  assert.equal(b1.pos, STABLE);
+  assert.equal(b2.pos, STABLE);
+  assert.notEqual(b3.pos, STABLE, '3 squares away is out of range');
+});
+
 for (const variant of ['classic', 'party'])
   test(`${variant}: full random 4p games finish without errors`, () => {
     for (let g = 0; g < 20; g++) {

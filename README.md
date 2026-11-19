@@ -37,6 +37,8 @@ Không dùng Docker: `npm ci && npm run build && npm start` (đổi cổng bằn
 Muốn dùng tên miền + HTTPS thì đặt reverse proxy phía trước, nhớ bật WebSocket. Ví dụ với Caddy:
 `your.domain { reverse_proxy localhost:3000 }`. Với Nginx cần thêm header `Upgrade`/`Connection`.
 
+Mở game bằng `localhost` thì link phòng tự đổi sang IP mạng LAN của máy (chỉ bạn bè cùng Wi-Fi vào được; bạn ở xa cần deploy hoặc chạy `npm run build && npm start` rồi mở tunnel, ví dụ `cloudflared tunnel --url http://localhost:3000`, và gửi link tunnel).
+
 Mời bạn chơi: **Tạo phòng** → gửi link `…/#room=ABCD` (hoặc mã 4 chữ) → chủ phòng chọn chế độ, ghế (người / bot / trống) → **Bắt đầu**.
 
 ## Cấu trúc thư mục

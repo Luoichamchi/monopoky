@@ -7,9 +7,9 @@ export function createGame(variantId: string, players: PlayerConfig[], rng: Rng)
   if (players.length < 2 || players.length > 4) throw new Error('need 2-4 players');
   const s: GameState = {
     variant: getVariant(variantId).id,
-    players: players.map(p => ({ name: p.name, seat: p.seat, bot: p.bot, cards: [], frozen: 0 })),
+    players: players.map(p => ({ name: p.name, seat: p.seat, bot: p.bot, cards: [] })),
     horses: players.flatMap((_, owner) =>
-      Array.from({ length: HORSES }, (_, i) => ({ id: owner * HORSES + i, owner, pos: STABLE, shield: 0 })),
+      Array.from({ length: HORSES }, (_, i) => ({ id: owner * HORSES + i, owner, pos: STABLE, shield: 0, frozen: 0 })),
     ),
     turn: 0,
     phase: 'roll',
@@ -58,7 +58,7 @@ export function legalActions(s: GameState): Action[] {
   const cards = getVariant(s.variant).cardActions?.(s) ?? [];
   if (s.phase === 'roll') return [{ type: 'roll' }, ...cards];
   const moves: Action[] = s.horses
-    .filter(h => h.owner === s.turn && target(s, h, s.dice) !== null)
+    .filter(h => h.owner === s.turn && h.frozen === 0 && target(s, h, s.dice) !== null)
     .map(h => ({ type: 'move', horse: h.id }));
   return [...(moves.length ? moves : [{ type: 'pass' } as Action]), ...cards];
 }
@@ -133,7 +133,7 @@ function endTurn(s: GameState, v: Variant, ctx: Ctx, bonus: boolean) {
   s.dice = 0;
   s.phase = 'roll';
   if (bonus) return ctx.ev.push({ t: 'turn', player: s.turn }), undefined;
-  // each skip consumes a frozen counter, so this loop terminates
+  // a variant may skip whole turns; it must not skip every player forever
   for (;;) {
     s.turn = (s.turn + 1) % s.players.length;
     if (s.turn === 0) s.round++;

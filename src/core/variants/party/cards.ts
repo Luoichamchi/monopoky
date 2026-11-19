@@ -1,12 +1,18 @@
 // Item cards: collected from gift tiles, played on your own turn. Every card targets a horse (or -1).
 import { onTrack, slide } from '../../board.ts';
-import type { Action, Ctx, GameState } from '../../types.ts';
+import type { Action, Ctx, GameState, Horse } from '../../types.ts';
 
 export const MAX_HAND = 2;
 
+/** Thawed at its owner's turn starts: 2 = locked through the owner's next full turn (and any 6-bonus before it). */
+export function freeze(h: Horse, ctx: Ctx) {
+  h.frozen = 2;
+  ctx.ev.push({ t: 'freeze', horse: h.id, on: true });
+}
+
 export const CARD_INFO: Record<string, { name: string; desc: string; phase: 'roll' | 'move' }> = {
   reroll: { name: 'Đổ lại', desc: 'Sau khi đổ, bỏ kết quả và đổ lại.', phase: 'move' },
-  freeze: { name: 'Đóng băng', desc: 'Chọn 1 ngựa địch: chủ của nó mất lượt kế tiếp.', phase: 'roll' },
+  freeze: { name: 'Đóng băng', desc: 'Chọn 1 ngựa địch trên đường đua: nó không được đi ở lượt kế tiếp.', phase: 'roll' },
   shield: { name: 'Khiên thần', desc: 'Ngựa của bạn trên đường đua không thể bị đá trong 3 lượt.', phase: 'roll' },
   lasso: { name: 'Dây kéo', desc: 'Kéo 1 ngựa địch trên đường đua lùi tối đa 4 ô.', phase: 'roll' },
 };
@@ -21,7 +27,7 @@ export function cardActions(s: GameState): Action[] {
     for (const h of s.horses) {
       const enemy = h.owner !== me;
       const ok =
-        card === 'freeze' ? enemy && h.id % 4 === 0 && s.players[h.owner].frozen === 0 // one action per opponent
+        card === 'freeze' ? enemy && onTrack(h) && h.frozen === 0
         : card === 'shield' ? !enemy && onTrack(h) && h.shield === 0
         : card === 'lasso' ? enemy && onTrack(h) && h.pos > 0 && h.shield === 0
         : false;
@@ -41,7 +47,7 @@ export function applyCard(s: GameState, a: Extract<Action, { type: 'card' }>, ct
       ctx.roll(1 + Math.floor(ctx.rng() * 6));
       break;
     case 'freeze':
-      s.players[h.owner].frozen++;
+      freeze(h, ctx);
       break;
     case 'shield':
       h.shield = 3;

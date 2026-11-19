@@ -12,7 +12,6 @@ export interface PlayerConfig {
 
 export interface Player extends PlayerConfig {
   cards: string[]; // variant item cards in hand
-  frozen: number; // turns to skip
 }
 
 export interface Horse {
@@ -20,6 +19,7 @@ export interface Horse {
   owner: number; // player index
   pos: number; // -1 stable, 0..50 track (relative to owner), 51..56 home steps 1..6
   shield: number; // owner-turns of protection left (variants)
+  frozen: number; // owner turn-starts until it may move again; > 0 = cannot move (variants)
 }
 
 export interface GameState {
@@ -48,7 +48,7 @@ export type GameEvent =
   | { t: 'shield'; horse: number; on: boolean }
   | { t: 'gain'; player: number; card: string }
   | { t: 'card'; player: number; card: string; target: number }
-  | { t: 'skip'; player: number }
+  | { t: 'freeze'; horse: number; on: boolean }
   | { t: 'pass'; player: number }
   | { t: 'turn'; player: number }
   | { t: 'win'; player: number };

@@ -12,7 +12,7 @@ export const W = {
   homeStep: 30, // per home step: climbing needs an exact die, so every step is precious
   risk: 0.5, // fraction of a threatened horse's value we expect to lose
   card: 6,
-  frozen: 9,
+  frozen: 9, // per frozen horse: it loses its next move
   leader: 0.65, // weight on the strongest opponent vs the average one
 };
 
@@ -31,11 +31,11 @@ export function threat(s: GameState, h: Horse, occ = occupancy(s)): number {
   const at = absOf(seatOf(s, h.owner), h.pos);
   let safe = 1;
   for (let o = 0; o < s.players.length; o++) {
-    if (o === h.owner || s.players[o].frozen > 0) continue;
+    if (o === h.owner) continue;
     const seat = seatOf(s, o);
     const kills = new Set<number>();
     for (const e of s.horses) {
-      if (e.owner !== o) continue;
+      if (e.owner !== o || e.frozen > 0) continue;
       if (e.pos === STABLE) {
         if (at === startOf(seat) % TRACK) v.exitOn.forEach(d => kills.add(d));
         continue;
@@ -55,9 +55,10 @@ export function threat(s: GameState, h: Horse, occ = occupancy(s)): number {
 
 export function playerScore(s: GameState, p: number, withRisk = true): number {
   const occ = withRisk ? occupancy(s) : [];
-  let score = s.players[p].cards.length * W.card - s.players[p].frozen * W.frozen;
+  let score = s.players[p].cards.length * W.card;
   for (const h of s.horses) {
     if (h.owner !== p || h.pos === STABLE) continue;
+    if (h.frozen > 0) score -= W.frozen;
     if (h.pos > GATE) {
       score += W.onBoard + GATE * W.progress + GATE * GATE * W.quad + W.home + homeStep(h) * W.homeStep;
       continue;

@@ -60,8 +60,8 @@ export const loadBoard = (kind: TemplateKind, theme: BoardTheme): Promise<MakeBo
     },
     async () => {
       const { Board3D, preload } = await import('../render3d/board3d.ts');
-      await preload();
-      return host => new Board3D(host);
+      await preload(theme);
+      return host => new Board3D(host, theme);
     },
     'board',
   );

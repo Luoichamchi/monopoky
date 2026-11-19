@@ -1,7 +1,7 @@
 // Special squares. Effects trigger once when a horse *stops* on the square (no chaining).
 import { GATE, TRACK, absOf, absOfHorse, horseAt, kick, onTrack, seatOf, slide } from '../../board.ts';
 import type { Ctx, GameState, Horse, Rng } from '../../types.ts';
-import { CARD_KINDS, MAX_HAND } from './cards.ts';
+import { CARD_KINDS, MAX_HAND, freeze } from './cards.ts';
 
 export const TILE_INFO: Record<string, { name: string; desc: string }> = {
   boost: { name: 'Tăng tốc', desc: 'Lao thêm tối đa 3 ô (không vượt quân khác).' },
@@ -9,7 +9,7 @@ export const TILE_INFO: Record<string, { name: string; desc: string }> = {
   portal: { name: 'Cổng dịch chuyển', desc: 'Bay tới cổng kế tiếp phía trước, đá luôn quân địch đang đứng đó.' },
   gift: { name: 'Hộp quà', desc: `Nhận 1 thẻ bài (tối đa ${MAX_HAND}).` },
   shield: { name: 'Khiên', desc: 'Không thể bị đá trong 3 lượt.' },
-  ice: { name: 'Băng giá', desc: 'Bị đóng băng, mất lượt kế tiếp.' },
+  ice: { name: 'Băng giá', desc: 'Ngựa bị đóng băng, không được đi ở lượt kế tiếp.' },
   bomb: { name: 'Bom', desc: 'Nổ tung: mọi ngựa địch trong bán kính 2 ô về chuồng (khiên đỡ được).' },
 };
 
@@ -68,7 +68,7 @@ export function onLand(s: GameState, h: Horse, ctx: Ctx) {
       ctx.ev.push({ t: 'shield', horse: h.id, on: true });
       break;
     case 'ice':
-      player.frozen++;
+      freeze(h, ctx);
       break;
     case 'bomb':
       for (const o of s.horses) {

@@ -64,6 +64,7 @@ export class ClassicBoard implements BoardRenderer {
       const [x, y] = this.xy(h.id, h.pos);
       utils.set(this.horses[h.id], { x, y, scale: 1, rotate: 0, opacity: 1 });
       this.horses[h.id].classList.toggle('shielded', h.shield > 0);
+      this.horses[h.id].classList.toggle('frozen', h.frozen > 0);
     }
     this.paintCells();
   }
@@ -95,6 +96,10 @@ export class ClassicBoard implements BoardRenderer {
       case 'shield':
         this.horses[e.horse].classList.toggle('shielded', e.on);
         if (e.on) await burst(this.fx, ...this.xy(e.horse), ['#7fd8ff', '#ffffff'], 10);
+        break;
+      case 'freeze':
+        this.horses[e.horse].classList.toggle('frozen', e.on);
+        if (e.on) await burst(this.fx, ...this.xy(e.horse), ['#bdf0ff', '#ffffff'], 14);
         break;
     }
   }

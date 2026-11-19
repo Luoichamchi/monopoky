@@ -2,6 +2,7 @@
 // The server is authoritative: clients only send actions, the GameSession validates and broadcasts results.
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { extname, resolve, sep } from 'node:path';
 import { Server, type Socket } from 'socket.io';
 import type { BotLevel, PlayerConfig } from '../core/types.ts';
@@ -19,6 +20,8 @@ const MIME: Record<string, string> = {
 
 const http = createServer(async (req, res) => {
   const path = decodeURIComponent((req.url ?? '/').split('?')[0]);
+  // LAN IPv4 of this machine, so a host on localhost can share a link friends can open
+  if (path === '/lan') return void res.end(Object.values(networkInterfaces()).flat().find(n => n?.family === 'IPv4' && !n.internal)?.address ?? '');
   let file = resolve(DIST, '.' + path);
   if (file !== DIST && !file.startsWith(DIST + sep)) return void res.writeHead(403).end();
   let body: Buffer;
@@ -61,7 +64,7 @@ interface Room {
 }
 const rooms = new Map<string, Room>();
 
-const clean = (s: unknown, max = 16) => String(s ?? '').trim().slice(0, max) || 'Người chơi';
+const clean = (s: unknown, max = 16) => String(s ?? '').trim().slice(0, max);
 const isToken = (t: unknown): t is string => typeof t === 'string' && /^[\w-]{8,64}$/.test(t);
 const LEVELS: BotLevel[] = ['easy', 'normal', 'hard', 'expert'];
 
@@ -121,7 +124,10 @@ io.on('connection', (socket: Socket) => {
       if (seat) seat.token = token;
     }
     if (seat) {
-      seat.name = name;
+      const i = r.seats.indexOf(seat);
+      const n = name || `Người chơi ${i + 1}`;
+      // two players with the same name are indistinguishable in the sidebar
+      seat.name = r.seats.some(s => s !== seat && s.name === n) ? `${n.slice(0, 13)} ${i + 1}` : n;
       seat.connected = true;
       clearTimeout(seat.dropTimer);
       const p = r.playerOf[r.seats.indexOf(seat)];

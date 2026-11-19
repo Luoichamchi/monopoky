@@ -101,7 +101,6 @@ function menu() {
     app.querySelectorAll<HTMLInputElement>('input[name=look]').forEach(r =>
       (r.onchange = () => {
         look.board = look.dice = r.value as TemplateKind; // preset; mix-and-match lives in the in-game 🎨 panel
-        $<HTMLElement>('.theme-choice').hidden = look.board !== '2d';
         saveLook();
       }),
     );
@@ -151,7 +150,7 @@ function online(joinId?: string) {
     let view: GameScreen | undefined;
     let room: RoomView | undefined;
     let early: Update[] = []; // updates that arrive before the 'room started' message
-    const name = prefs.name || 'Bạn';
+    const name = prefs.name; // empty → server picks a unique "Người chơi N"
     app.innerHTML = `<main class="menu"><section class="card lobby"><p>Đang kết nối…</p></section></main>`;
 
     const enter = async () => {
@@ -196,7 +195,7 @@ function online(joinId?: string) {
 }
 
 function lobby(sock: Socket, r: RoomView) {
-  const link = `${location.origin}${location.pathname}#room=${r.id}`;
+  let link = `${location.origin}${location.pathname}#room=${r.id}`;
   const names = (i: number) => {
     const s = r.seats[i];
     if (s.kind !== 'human') return '';
@@ -231,6 +230,15 @@ function lobby(sock: Socket, r: RoomView) {
     app.querySelectorAll<HTMLSelectElement>('select[data-seat]').forEach(s => (s.onchange = send));
     app.querySelector<HTMLButtonElement>('#start')!.onclick = () => sock.emit('start');
   }
+  // localhost links only work on this machine: swap in the server's LAN IP
+  if (/^(localhost|127\.|\[::1\])/.test(location.hostname))
+    fetch('/lan').then(r => r.text()).then(ip => {
+      if (!ip) return;
+      const u = new URL(link);
+      u.hostname = ip;
+      link = u.href;
+      app.querySelector<HTMLInputElement>('.link')!.value = link;
+    }).catch(() => {});
   app.querySelector<HTMLButtonElement>('#copy')!.onclick = () => navigator.clipboard?.writeText(link);
   app.querySelector<HTMLButtonElement>('#back')!.onclick = () => (history.replaceState(null, '', location.pathname), menu());
 }

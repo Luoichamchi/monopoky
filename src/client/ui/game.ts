@@ -172,7 +172,7 @@ export class GameScreen {
   }
 
   private async swap(l: Look) {
-    const needBoard = l.board !== this.shown.board || (l.board === '2d' && l.theme !== this.shown.theme);
+    const needBoard = l.board !== this.shown.board || l.theme !== this.shown.theme;
     const needDice = l.dice !== this.shown.dice;
     if (!needBoard && !needDice) return;
     if (this.board && this.dice) this.lockInput();
@@ -186,6 +186,7 @@ export class GameScreen {
       this.el.classList.toggle('full-board', !!this.board.fullTable);
       const layered = !this.board.fullTable && l.theme !== 'original';
       this.el.dataset.theme = this.board.fullTable ? '3d' : l.theme;
+      this.el.dataset.boardTheme = l.theme; // lets 3D pick up the theme's backdrop
       this.el.classList.toggle('arena-game', layered && l.theme !== 'atlas');
       this.el.classList.toggle('atlas-game', layered && l.theme === 'atlas');
       this.el.querySelector('.arena-heading h1')!.textContent = l.theme === 'atlas' ? 'Tinh bàn' : BOARD_THEMES[l.theme];
@@ -243,9 +244,12 @@ export class GameScreen {
         sfx.play('pass');
         await wait(350);
         break;
-      case 'skip':
-        sfx.play('ice');
-        await cutIn(this.el, `❄ ${this.name(e.player)} bị đóng băng!`, '#7fd8ff');
+      case 'freeze':
+        if (e.on) {
+          sfx.play('ice');
+          this.say(`❄ Ngựa của ${this.name(s.horses[e.horse].owner)} bị đóng băng, lượt tới không được đi!`);
+        }
+        await this.board.animate(e);
         break;
       case 'gain':
         this.say(`${CARD_SKIN[e.card]} ${this.name(e.player)} nhận thẻ <b>${CARD_INFO[e.card].name}</b>`);
@@ -310,10 +314,7 @@ export class GameScreen {
 
     if (this.aiming) {
       const cardActs = acts.filter(a => a.type === 'card' && a.card === this.aiming) as Extract<Action, { type: 'card' }>[];
-      // freeze targets a player: any of their horses may be clicked
-      const pick = (id: number) =>
-        cardActs.find(a => a.target === id) ??
-        (this.aiming === 'freeze' ? cardActs.find(a => s.horses[a.target].owner === s.horses[id].owner) : undefined);
+      const pick = (id: number) => cardActs.find(a => a.target === id);
       const ids = s.horses.filter(h => pick(h.id)).map(h => h.id);
       this.say(`${CARD_SKIN[this.aiming]} Chọn mục tiêu cho <b>${CARD_INFO[this.aiming].name}</b> (Esc để huỷ)`);
       this.board.setPickable(ids, id => this.send(pick(id)!));
@@ -368,7 +369,7 @@ export class GameScreen {
         <div class="pcard ${s.turn === i && s.phase !== 'over' ? 'active' : ''} ${s.winner === i ? 'winner' : ''}" style="--c:${c.main};--l:${c.light};--d:${c.dark}">
           <div class="avatar" data-seat="${p.seat}">${THEME.horseGlyph}</div>
           <div class="pinfo">
-            <div class="pname">${esc(p.name)} ${p.frozen ? '<span title="Bị đóng băng">❄</span>' : ''}</div>
+            <div class="pname">${esc(p.name)} ${s.horses.some(h => h.owner === i && h.frozen) ? '<span title="Có ngựa bị đóng băng">❄</span>' : ''}</div>
             <div class="ptag">${tag}</div>
             <div class="cards"></div>
           </div>
@@ -432,7 +433,6 @@ export class GameScreen {
     o.querySelectorAll<HTMLInputElement>('input[type=radio]').forEach(r =>
       (r.onchange = () => {
         look[r.name as 'board' | 'dice'] = r.value as TemplateKind;
-        o.querySelector<HTMLElement>('.theme-choice')!.hidden = look.board !== '2d';
         saveLook();
         this.setLook({ ...look });
       }),

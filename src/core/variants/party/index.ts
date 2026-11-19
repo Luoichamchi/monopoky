@@ -15,14 +15,11 @@ export const party: Variant = {
   canKick: (_s, victim) => victim.shield === 0,
   onTurnStart(s, ctx) {
     for (const h of s.horses) {
-      if (h.owner !== s.turn || h.shield === 0) continue;
-      if (--h.shield === 0) ctx.ev.push({ t: 'shield', horse: h.id, on: false });
+      if (h.owner !== s.turn) continue;
+      if (h.shield > 0 && --h.shield === 0) ctx.ev.push({ t: 'shield', horse: h.id, on: false });
+      if (h.frozen > 0 && --h.frozen === 0) ctx.ev.push({ t: 'freeze', horse: h.id, on: false });
     }
-    const p = s.players[s.turn];
-    if (p.frozen === 0) return false;
-    p.frozen--;
-    ctx.ev.push({ t: 'skip', player: s.turn });
-    return true;
+    return false;
   },
   cardActions,
   applyCard,

@@ -66,6 +66,7 @@ export class BoardView implements BoardRenderer {
       const [wx, wy] = horseXY(seatOf(s, h.owner), h.pos, h.id % 4);
       this.targets[h.id].setAttribute('transform', this.art.hitTransform(wx, wy, h.pos === STABLE));
       this.horses[h.id].classList.toggle('shielded', h.shield > 0);
+      this.horses[h.id].classList.toggle('frozen', h.frozen > 0);
     }
     // Paint rear spirits first so adjacent ranks read in the same order as their footprints.
     const ordered = [...s.horses].sort((a, b) => this.xy(a.id)[1] - this.xy(b.id)[1]);
@@ -107,6 +108,10 @@ export class BoardView implements BoardRenderer {
       case 'shield':
         this.horses[e.horse].classList.toggle('shielded', e.on);
         if (e.on) await burst(this.fx, ...this.xy(e.horse), ['#7fd8ff', '#ffffff'], 10);
+        break;
+      case 'freeze':
+        this.horses[e.horse].classList.toggle('frozen', e.on);
+        if (e.on) await burst(this.fx, ...this.xy(e.horse), ['#bdf0ff', '#ffffff'], 14);
         break;
     }
   }

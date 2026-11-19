@@ -18,7 +18,7 @@ export function animMs(events: GameEvent[]): number {
     if (e.t === 'move') ms += e.jump ? 600 : e.path.length * TIMING.hop + 100;
     else if (e.t === 'roll') ms += TIMING.roll;
     else if (e.t === 'kick') ms += TIMING.kick;
-    else if (e.t === 'tile' || e.t === 'card' || e.t === 'skip') ms += TIMING.tile;
+    else if (e.t === 'tile' || e.t === 'card' || e.t === 'freeze') ms += TIMING.tile;
     else if (e.t === 'turn') ms += 150;
   }
   return ms;

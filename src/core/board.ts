@@ -36,6 +36,8 @@ export function kick(victim: Horse, by: Horse, ctx: Ctx) {
   victim.pos = STABLE;
   victim.shield = 0;
   ctx.ev.push({ t: 'kick', horse: victim.id, by: by.id });
+  if (victim.frozen) ctx.ev.push({ t: 'freeze', horse: victim.id, on: false });
+  victim.frozen = 0;
 }
 
 /** Slide a track horse up to `n` squares (dir ±1) without passing anyone or leaving 0..GATE. Returns path. */
