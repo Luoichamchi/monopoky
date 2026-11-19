@@ -5,13 +5,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { GATE, STABLE, absOf, seatOf } from '../../core/board.ts';
+import { GATE, HOME, STABLE, absOf, seatOf } from '../../core/board.ts';
 import type { GameEvent, GameState } from '../../core/types.ts';
 import { TIMING } from '../../session.ts';
 import { animate, burst, done, explosion, iconPop, impact, sfxText, shake, svg, utils } from '../render/fx.ts';
 import { CELL, CORNERS, HOME_CELLS, TRACK_CELLS, center, horseXY } from '../render/layout.ts';
 import type { BoardRenderer } from '../render/renderer.ts';
 import { GRADIENT, INK, disposeRenderer, noOutline, toon } from './toon.ts';
+import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
 import { TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 import type { BoardTheme } from '../render/board-themes.ts';
@@ -22,10 +23,15 @@ const HORSE_URL = `${import.meta.env.BASE_URL}models/horse.glb`; // Quaternius, 
 const ATLAS_URL = `${import.meta.env.BASE_URL}models/atlas-board.glb`; // built by tools/blender/atlas_board.py
 let horseAsset: GLTF | undefined;
 let atlasAsset: GLTF | undefined;
+const PIECE_URL = `${import.meta.env.BASE_URL}models/horse-piece.glb`; // built by tools/blender/horse_piece.py
+let pieceAsset: GLTF | undefined;
 
 export async function preload(theme: BoardTheme) {
   horseAsset ??= await new GLTFLoader().loadAsync(HORSE_URL);
-  if (theme === 'atlas') atlasAsset ??= await new GLTFLoader().loadAsync(ATLAS_URL);
+  if (theme === 'atlas') {
+    atlasAsset ??= await new GLTFLoader().loadAsync(ATLAS_URL);
+    pieceAsset ??= await new GLTFLoader().loadAsync(PIECE_URL);
+  }
   await document.fonts?.load('800 64px "Baloo 2"').catch(() => undefined); // labels are drawn on canvases
 }
 
@@ -99,9 +105,19 @@ interface Horse3D {
   idle?: THREE.AnimationAction;
   run?: THREE.AnimationAction;
   death?: THREE.AnimationAction;
+  spirit?: SpiritParts; // atlas chess-piece horses only
 }
 
-type LaneMaterial = THREE.MeshToonMaterial | THREE.MeshStandardMaterial;
+interface SpiritParts {
+  head: THREE.Object3D; // horse_spirit node: floats above the pedestal
+  smoke: Smoke;
+  phase: number; // desyncs the bobbing between pieces
+  power: number; // smoothed smoke strength (thicker while pickable)
+  pedestal: number; // pedestal top in world units, where the dust rises from
+  last: THREE.Vector3; // previous position, to notice movement
+}
+
+type GlowMaterial = THREE.MeshToonMaterial | THREE.MeshStandardMaterial;
 
 export class Board3D implements BoardRenderer {
   onHop?: () => void;
@@ -122,10 +138,11 @@ export class Board3D implements BoardRenderer {
   private pos: number[] = [];
   private horses: Horse3D[] = [];
   private cells = new Map<number, THREE.Mesh>();
-  private lanes: LaneMaterial[] = [];
+  private stables: GlowMaterial[][] = []; // per seat: what pulses when it is that seat's turn
   private tileSprites: THREE.Sprite[] = [];
   private star?: THREE.Object3D;
   private starY = 1.2; // bobbing centre of the spinning centrepiece
+  private dust?: SpiritDust;
   private marker: THREE.Mesh;
   private turnSeat = -1;
   private pickable = new Set<number>();
@@ -199,6 +216,12 @@ export class Board3D implements BoardRenderer {
     this.tileSprites = [];
     this.drawBoard(s);
     this.horses = s.horses.map(h => this.makeHorse(seatOf(s, h.owner), h.id));
+    this.dust = undefined;
+    if (this.horses[0]?.spirit) {
+      const fewer = matchMedia('(pointer: coarse)').matches; // phones: half the particles
+      this.dust = new SpiritDust(s.horses.map(h => new THREE.Color(seatColor(seatOf(s, h.owner)).main)), fewer ? 12 : 24);
+      this.world.add(this.dust.points);
+    }
     this.pos = s.horses.map(() => STABLE);
     this.sync(s);
   }
@@ -210,7 +233,7 @@ export class Board3D implements BoardRenderer {
       const hz = this.horses[h.id];
       hz.root.position.copy(this.at(h.id));
       hz.body.scale.setScalar(1);
-      hz.body.rotation.set(0, h.pos === STABLE ? this.faceCenter(hz.root.position) : hz.body.rotation.y, 0);
+      hz.body.rotation.set(0, h.pos === STABLE ? this.faceCenter(hz.root.position) : this.heading(h.id, h.pos), 0);
       hz.bubble.visible = h.shield > 0;
       hz.ice.visible = h.frozen > 0;
     }
@@ -281,14 +304,48 @@ export class Board3D implements BoardRenderer {
     const dt = this.timer.getDelta();
     const t = this.timer.getElapsed();
     for (const h of this.horses) h.mixer.update(dt);
+    this.animateSpirits(dt, t);
     this.tileSprites.forEach((sp, i) => (sp.position.y = 0.62 + Math.sin(t * 2.2 + i) * 0.06));
     if (this.star) (this.star.rotation.y = t * 0.8), (this.star.position.y = this.starY + Math.sin(t * 2) * 0.12);
-    this.lanes.forEach((m, seat) => (m.emissiveIntensity = seat === this.turnSeat ? 0.25 + 0.25 * Math.sin(t * 5) : 0));
+    const glow = 0.25 + 0.25 * Math.sin(t * 5);
+    this.stables.forEach((mats, seat) => mats.forEach(m => (m.emissiveIntensity = seat === this.turnSeat ? glow : 0)));
     const pulse = 1 + 0.12 * Math.sin(t * 8);
     this.horses.forEach(h => h.ring.visible && h.ring.scale.setScalar(pulse));
     this.marker.rotation.z = t * 2;
     this.controls.update();
     this.effect.render(this.scene, this.camera);
+  }
+
+  /** Idle life of the atlas pieces: floating head, swirling smoke (thicker when pickable), rising dust. */
+  private animateSpirits(dt: number, t: number) {
+    if (!this.dust) return;
+    smokeTime.value = t;
+    const moving: boolean[] = [];
+    this.horses.forEach((h, id) => {
+      const sp = h.spirit!;
+      const picked = this.pickable.has(id);
+      moving[id] = sp.last.distanceToSquared(h.root.position) > 1e-6;
+      sp.last.copy(h.root.position);
+      const target = picked || moving[id] ? 1 : 0.6;
+      sp.power += (target - sp.power) * Math.min(1, dt * 4);
+      sp.smoke.material.uniforms.uPower.value = sp.power;
+      sp.smoke.group.rotation.y += dt * (0.6 + sp.power);
+      const amp = picked ? 0.05 : 0.03;
+      sp.head.position.y = 0.03 + amp + Math.sin(t * 1.6 + sp.phase) * amp; // never dips into the pedestal
+      sp.head.rotation.z = Math.sin(t * 1.1 + sp.phase) * 0.04;
+      sp.head.rotation.x = Math.sin(t * 0.9 + sp.phase * 1.3) * 0.03;
+    });
+    const at = new THREE.Vector3();
+    this.dust.update(
+      dt,
+      this.renderer.domElement.height,
+      i => {
+        const h = this.horses[i];
+        if (h.body.scale.x < 0.5) return null; // hidden mid kick / teleport
+        return at.copy(h.root.position).setY(h.root.position.y + h.spirit!.pedestal * 0.9);
+      },
+      i => (this.pickable.has(i) || moving[i] ? 1 : 0),
+    );
   }
 
   private resize() {
@@ -366,6 +423,23 @@ export class Board3D implements BoardRenderer {
     return Math.atan2(-p.x, -p.z);
   }
 
+  /** Heading along the route at `pos` (track or home lane). The diagonal step at a corner keeps the incoming straight. */
+  private heading(id: number, pos: number) {
+    const seat = seatOf(this.s, this.s.horses[id].owner);
+    const xy = (p: number) => horseXY(seat, p, 0);
+    const from = Math.min(pos, GATE + HOME - 1); // last home step: keep the lane's direction
+    let [a, b] = [xy(from), xy(from + 1)];
+    if (a[0] !== b[0] && a[1] !== b[1] && from > 0) [a, b] = [xy(from - 1), a];
+    return Math.atan2(b[0] - a[0], b[1] - a[1]);
+  }
+
+  /** Turn to `angle` the short way round. */
+  private turn(h: Horse3D, angle: number, duration: number) {
+    const cur = h.body.rotation.y;
+    const to = cur + Math.atan2(Math.sin(angle - cur), Math.cos(angle - cur));
+    return duration ? done(animate(h.body.rotation, { y: to, duration, ease: 'outQuad' })) : (h.body.rotation.y = to);
+  }
+
   /** Light up track squares that hold a horse. */
   private paintCells() {
     const occ = new Map<number, string>();
@@ -376,7 +450,7 @@ export class Board3D implements BoardRenderer {
     }
     this.cells.forEach((m, abs) => {
       const col = occ.get(abs);
-      (m.material as LaneMaterial).color.set(col ?? m.userData.base);
+      (m.material as GlowMaterial).color.set(col ?? m.userData.base);
       m.scale.y = col ? m.userData.lift : 1;
     });
   }
@@ -411,7 +485,7 @@ export class Board3D implements BoardRenderer {
 
   /**
    * "Tinh bàn Thiên Mã": the whole board is modelled in Blender (blender/atlas-board.blend), on the same grid
-   * (1 unit = 1 cell). Code only recolours what the game state drives: track cells, home lanes, unused seats.
+   * (1 unit = 1 cell). Code only recolours what the game state drives: track cells, the stable whose turn it is, unused seats.
    * Names it relies on: cell_<abs>, lane_<seat>_gate, lane_<seat>_step<i>, stable_<seat>, lane_<seat>, hub.
    */
   private drawAtlas(used: Set<number>) {
@@ -424,19 +498,17 @@ export class Board3D implements BoardRenderer {
       }
       return -1;
     };
-    const lanes: LaneMaterial[] = [];
+    const stables: GlowMaterial[][] = [[], [], [], []];
     board.traverse(o => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       m.receiveShadow = true;
       m.castShadow = /mountains|foothills|hub_/.test(m.name);
-      let mat = noOutline((m.material as LaneMaterial).clone()); // own copy: cells and seats are recoloured
+      const mat = noOutline((m.material as GlowMaterial).clone()); // own copy: cells and seats are recoloured
       const seat = owner(m);
       if (seat >= 0 && !used.has(seat)) mat.color.lerp(new THREE.Color('#1b2130'), 0.55);
-      if (/^lane_\d_(gate|step\d)$/.test(m.name)) {
-        lanes[seat] ??= Object.assign(mat, { emissive: new THREE.Color(seatColor(seat).main), emissiveIntensity: 0 });
-        mat = lanes[seat];
-      }
+      if (/^stable_\d_(floor|glow|rim)$/.test(m.name))
+        stables[seat].push(Object.assign(mat, { emissive: new THREE.Color(seatColor(seat).main), emissiveIntensity: 0 }));
       m.material = mat;
       const cell = m.name.match(/^cell_(\d+)$/);
       if (cell && !starts.includes(+cell[1])) {
@@ -444,7 +516,7 @@ export class Board3D implements BoardRenderer {
         this.cells.set(+cell[1], m);
       }
     });
-    this.lanes = lanes;
+    this.stables = stables;
     this.world.add(board);
     const hub = board.getObjectByName('hub');
     if (hub) (this.star = hub), (this.starY = hub.position.y);
@@ -454,17 +526,19 @@ export class Board3D implements BoardRenderer {
     const cx = (c: number) => c + 0.5 - 7.5; // cell index -> world
     this.add(slab(16.4, 16.4, 0.5, 0.8), toon('#fffaf3'), 0, -0.5, 0);
 
-    CORNERS.forEach(([c, r], seat) => {
+    this.stables = CORNERS.map(([c, r], seat) => {
       const col = seatColor(seat);
       const [x, z] = [c + 3 - 7.5, r + 3 - 7.5];
       const dim = used.has(seat) ? 1 : 0.35;
-      this.add(slab(5.6, 5.6, 0.3, 0.7), toon(new THREE.Color(col.main).lerp(new THREE.Color('#ddd'), 1 - dim)), x, 0, z);
+      const mat = toon(new THREE.Color(col.main).lerp(new THREE.Color('#ddd'), 1 - dim), { emissive: new THREE.Color(col.main), emissiveIntensity: 0 });
+      this.add(slab(5.6, 5.6, 0.3, 0.7), mat, x, 0, z);
       this.add(slab(4.2, 4.2, 0.05, 0.5), toon(col.light), x, 0.3, z);
       for (let k = 0; k < 4; k++) {
         const [px, py] = horseXY(seat, STABLE, k);
         const ring = this.add(new THREE.RingGeometry(0.3, 0.4, 24), noOutline(new THREE.MeshBasicMaterial({ color: col.main })), W(px), H.stable + 0.002, W(py), false);
         ring.rotation.x = -Math.PI / 2;
       }
+      return [mat];
     });
 
     // shared track: low pale tiles that rise and take color when a horse stands on them
@@ -495,13 +569,13 @@ export class Board3D implements BoardRenderer {
     });
 
     // home lanes: raised colored strips, the visual focus
-    this.lanes = HOME_CELLS.map((home, seat) => {
+    HOME_CELLS.forEach((home, seat) => {
       const col = seatColor(seat);
       const gate = TRACK_CELLS[absOf(seat, GATE)];
       const all = [gate, ...home];
       const [c0, c1] = [Math.min(...all.map(p => p[0])), Math.max(...all.map(p => p[0]))];
       const [r0, r1] = [Math.min(...all.map(p => p[1])), Math.max(...all.map(p => p[1]))];
-      const mat = toon(used.has(seat) ? col.main : '#cccccc', { emissive: new THREE.Color(col.main), emissiveIntensity: 0 });
+      const mat = toon(used.has(seat) ? col.main : '#cccccc');
       this.add(slab(c1 - c0 + 0.92, r1 - r0 + 0.92, 0.18, 0.3), mat, (c0 + c1) / 2 + 0.5 - 7.5, 0, (r0 + r1) / 2 + 0.5 - 7.5);
       const [gx, gy] = center(gate).map(W);
       const [hx, hy] = center(home[0]).map(W);
@@ -516,7 +590,6 @@ export class Board3D implements BoardRenderer {
         num.position.set(cx(c), H.lane + 0.015, cx(r));
         this.world.add(num);
       });
-      return mat;
     });
 
     const starShape = new THREE.Shape();
@@ -531,23 +604,56 @@ export class Board3D implements BoardRenderer {
     this.star = star;
   }
 
-  private makeHorse(seat: number, id: number): Horse3D {
-    const src = horseAsset!;
+  /** Tinh bàn chess piece: pedestal + floating spirit head (two glTF nodes), mane and pedestal in the seat color. */
+  private makePiece(seat: number) {
     const col = seatColor(seat);
-    const model = SkeletonUtils.clone(src.scene) as THREE.Object3D;
-    const coat = toon(col.main), mane = toon(col.dark);
+    const model = pieceAsset!.scene.clone();
     model.traverse(o => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       m.castShadow = true;
-      m.material = (m.material as THREE.Material).name === 'Material.003' ? coat : mane;
+      const tint = (mat: THREE.Material) => {
+        const c = noOutline(mat.clone()) as THREE.MeshStandardMaterial;
+        if (mat.name === 'hp_mane') c.color.set(col.main), c.emissive.set(col.dark), (c.emissiveIntensity = 0.35);
+        if (mat.name === 'hp_base') c.color.set(col.dark);
+        return c;
+      };
+      m.material = Array.isArray(m.material) ? m.material.map(tint) : tint(m.material);
     });
-    // normalise size: fit the horse's length into ~0.9 cell, feet on y=0
-    const box = new THREE.Box3().setFromObject(src.scene);
-    const size = box.getSize(new THREE.Vector3());
-    const k = 1.25 / Math.max(size.x, size.z);
+    const base = model.getObjectByName('horse_base')!;
+    const size = new THREE.Box3().setFromObject(base).getSize(new THREE.Vector3());
+    const k = 0.82 / Math.max(size.x, size.z); // pedestal ≈ 0.82 cell wide
     model.scale.setScalar(k);
-    model.position.y = -box.min.y * k;
+    const smoke = smokeRibbons(col.main, Math.random() * 10);
+    model.add(smoke.group);
+    const spirit: SpiritParts = {
+      head: model.getObjectByName('horse_spirit')!, smoke, phase: Math.random() * Math.PI * 2,
+      power: 0.6, pedestal: size.y * k, last: new THREE.Vector3(),
+    };
+    return { model, spirit };
+  }
+
+  private makeHorse(seat: number, id: number): Horse3D {
+    const src = horseAsset!;
+    const col = seatColor(seat);
+    let model: THREE.Object3D, spirit: SpiritParts | undefined;
+    if (this.theme === 'atlas') ({ model, spirit } = this.makePiece(seat));
+    else {
+      model = SkeletonUtils.clone(src.scene) as THREE.Object3D;
+      const coat = toon(col.main), mane = toon(col.dark);
+      model.traverse(o => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        m.castShadow = true;
+        m.material = (m.material as THREE.Material).name === 'Material.003' ? coat : mane;
+      });
+      // normalise size: fit the horse's length into ~0.9 cell, feet on y=0
+      const box = new THREE.Box3().setFromObject(src.scene);
+      const size = box.getSize(new THREE.Vector3());
+      const k = 1.25 / Math.max(size.x, size.z);
+      model.scale.setScalar(k);
+      model.position.y = -box.min.y * k;
+    }
 
     const root = new THREE.Group();
     const body = new THREE.Group();
@@ -582,7 +688,9 @@ export class Board3D implements BoardRenderer {
       const c = clip(name);
       return c ? mixer.clipAction(c) : undefined;
     };
-    const h: Horse3D = { root, body, ring, bubble, ice, hit, mixer, idle: action('Idle'), run: action('Run'), death: action('Death') };
+    const h: Horse3D = spirit
+      ? { root, body, ring, bubble, ice, hit, mixer, spirit }
+      : { root, body, ring, bubble, ice, hit, mixer, idle: action('Idle'), run: action('Run'), death: action('Death') };
     h.idle?.play();
     if (h.idle) h.idle.time = Math.random() * h.idle.getClip().duration; // desync idles
     return h;
@@ -602,12 +710,12 @@ export class Board3D implements BoardRenderer {
   private async hop(id: number, to: number) {
     const h = this.horses[id];
     const p = this.at(id, to);
-    h.body.rotation.y = Math.atan2(p.x - h.root.position.x, p.z - h.root.position.z);
     this.pos[id] = to;
     this.paintCells();
     this.onHop?.();
     const y0 = Math.max(h.root.position.y, p.y);
     await Promise.all([
+      this.turn(h, this.heading(id, to), TIMING.hop),
       done(animate(h.root.position, { x: p.x, z: p.z, duration: TIMING.hop, ease: 'inOutSine' })),
       done(animate(h.root.position, { y: [{ to: y0 + 0.45, ease: 'outQuad' }, { to: p.y, ease: 'inQuad' }], duration: TIMING.hop })),
     ]);
@@ -620,6 +728,7 @@ export class Board3D implements BoardRenderer {
     this.pos[id] = to;
     this.paintCells();
     h.root.position.copy(this.at(id));
+    this.turn(h, this.heading(id, to), 0);
     burst(this.fx, ...this.screen(h.root.position, 0.4), ['#b28dff', '#ffffff', '#6ee7ff'], 12);
     await done(animate(h.body.scale, { x: 1, y: 1, z: 1, duration: 320, ease: 'outBack(2)' }));
   }

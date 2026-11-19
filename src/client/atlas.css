@@ -6,7 +6,6 @@
 .board .hbody { transform-origin: center bottom; }
 .board .stable.off, .board .lane.off { opacity: .48; }
 .board .stable.active > path:first-child { stroke: #fae6b1; stroke-width: 3; }
-.board .lane.active rect:nth-of-type(even) { stroke-width: 1.8; }
 .board .stable-name { font: 600 12px/1 Georgia, serif; letter-spacing: 2.8px; text-anchor: middle; }
 .board .lane-number { font: 600 19px Georgia, serif; text-anchor: middle; }
 .projections, .board .fx, .board .marker, .board .horse { pointer-events: none; }

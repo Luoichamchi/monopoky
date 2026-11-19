@@ -26,7 +26,6 @@ export class BoardView implements BoardRenderer {
   private onPick?: (id: number) => void;
   private cells: SVGGraphicsElement[] = [];
   private art: BoardArt;
-  private lanes: SVGGElement[][] = [];
   onHop?: () => void; // hook for sound/haptics, keeps this file free of audio
 
   constructor(host: HTMLElement, art: BoardArt) {
@@ -42,7 +41,6 @@ export class BoardView implements BoardRenderer {
     this.root.innerHTML = '';
     const arena = this.art.draw(this.root, s.players.map(p => p.seat), s.tiles);
     this.cells = arena.cells;
-    this.lanes = arena.lanes;
     this.stables = arena.stables;
     this.projections = [];
     this.targets = [];
@@ -158,8 +156,7 @@ export class BoardView implements BoardRenderer {
 
   /** Glow the home lane of the player whose turn it is (-1 = none). */
   setTurn(seat: number) {
-    this.lanes.forEach((lane, i) => lane.forEach(cell => cell.classList.toggle('active', i === seat)));
-    this.stables.forEach((g, i) => g.classList.toggle('active', i === seat));
+    this.stables.forEach((g, i) => g.classList.toggle('active', i === seat)); // whose turn: their starting stable glows
   }
 
   private drawHorse(seat: number, id: number): SVGGElement {

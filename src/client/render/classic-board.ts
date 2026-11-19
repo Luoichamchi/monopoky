@@ -24,7 +24,7 @@ export class ClassicBoard implements BoardRenderer {
   private s!: GameState;
   private onPick?: (id: number) => void;
   private cells: SVGRectElement[] = []; // track squares by absolute index (sparse: no starts/gates)
-  private lanes: SVGGElement[] = [];
+  private stables: SVGGElement[] = [];
   onHop?: () => void; // hook for sound/haptics, keeps this file free of audio
 
   constructor(host: HTMLElement) {
@@ -144,9 +144,9 @@ export class ClassicBoard implements BoardRenderer {
     svg('rect', { x: -8, y: -8, width: SIZE + 16, height: SIZE + 16, rx: 30, class: 'board-bg' }, r);
     const used = new Set(s.players.map(p => p.seat));
 
-    CORNERS.forEach(([c, rr], seat) => {
+    this.stables = CORNERS.map(([c, rr], seat) => {
       const col = seatColor(seat);
-      const g = svg('g', { class: used.has(seat) ? 'stable' : 'stable off' }, r);
+      const g = svg('g', { class: used.has(seat) ? 'stable' : 'stable off', style: `--c:${col.main}` }, r);
       const x = c * CELL + 4, y = rr * CELL + 4, w = 6 * CELL - 8;
       svg('rect', { x, y, width: w, height: w, rx: 26, fill: col.main, stroke: THEME.ink, 'stroke-width': 4 }, g);
       svg('rect', { x, y, width: w, height: w, rx: 26, fill: 'url(#dots)' }, g);
@@ -155,6 +155,7 @@ export class ClassicBoard implements BoardRenderer {
         const [hx, hy] = horseXY(seat, STABLE, k);
         svg('circle', { cx: hx, cy: hy, r: 18, fill: '#fff', stroke: col.main, 'stroke-width': 3, 'stroke-dasharray': '5 4' }, g);
       }
+      return g;
     });
 
     // shared track: faint, a square lights up only while a horse stands on it (see paintCells)
@@ -178,7 +179,7 @@ export class ClassicBoard implements BoardRenderer {
     );
 
     // home lanes: gate square + steps 1..6 as one bold strip per seat, the visual focus of the board
-    this.lanes = HOME_CELLS.map((home, seat) => {
+    HOME_CELLS.forEach((home, seat) => {
       const col = seatColor(seat);
       const gate = TRACK_CELLS[absOf(seat, GATE)];
       const all = [gate, ...home];
@@ -200,7 +201,6 @@ export class ClassicBoard implements BoardRenderer {
         svg('rect', { x: cx - 15, y: cy - 15, width: 30, height: 30, rx: 8, fill: win ? '#fff' : col.light }, g);
         svg('text', { x: cx, y: cy, class: 'cell-num', fill: win ? col.main : col.dark }, g, String(i + 1));
       });
-      return g;
     });
     svg('text', { x: m, y: m + 1, class: 'center-star' }, r, '★');
   }
@@ -222,7 +222,7 @@ export class ClassicBoard implements BoardRenderer {
 
   /** Glow the home lane of the player whose turn it is (-1 = none). */
   setTurn(seat: number) {
-    this.lanes.forEach((l, i) => l.classList.toggle('active', i === seat));
+    this.stables.forEach((g, i) => g.classList.toggle('active', i === seat)); // whose turn: their starting stable glows
   }
 
   private drawHorse(seat: number, id: number): SVGGElement {

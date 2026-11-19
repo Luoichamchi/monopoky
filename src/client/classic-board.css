@@ -9,11 +9,11 @@
 .cell { fill-opacity: .45; stroke: var(--ink); stroke-opacity: .14; stroke-width: 1.5; transition: fill-opacity .25s, stroke-opacity .25s; }
 .cell.start { fill-opacity: .9; stroke-opacity: .5; }
 .cell.occ { fill-opacity: 1; stroke-opacity: 1; stroke-width: 2.2; }
-/* home lanes are the visual focus; the current player's lane glows */
+/* home lanes are the visual focus; the current player's starting stable glows */
 .lane-bg { stroke: var(--ink); stroke-width: 3.5; }
-.lane.active .lane-bg { animation: laneglow 1s ease-in-out infinite alternate; }
-@keyframes laneglow { from { stroke: var(--ink); stroke-width: 3.5; } to { stroke: #fff; stroke-width: 6; } }
-.lane.active { filter: drop-shadow(0 0 7px var(--c)); }
+.stable.active > rect:first-child { animation: stableglow 1s ease-in-out infinite alternate; }
+@keyframes stableglow { from { stroke: var(--ink); stroke-width: 4; } to { stroke: #fff; stroke-width: 7; } }
+.stable.active { filter: drop-shadow(0 0 9px var(--c)); }
 .cell-mark, .cell-num, .center-star, .horse-glyph, .tile-icon { text-anchor: middle; dominant-baseline: central; pointer-events: none; user-select: none; }
 .cell-mark { font-size: 22px; paint-order: stroke; stroke: var(--ink); stroke-width: 2px; }
 .cell-num { font-weight: 800; font-size: 18px; }

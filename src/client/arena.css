@@ -11,7 +11,6 @@
 .board .hbody { transform-origin: center bottom; }
 .board .stable.off, .board .lane.off { filter: saturate(.35); }
 .board .stable.active > polygon:last-of-type { stroke: #fff; stroke-width: 3; }
-.board .lane.active > polygon:last-of-type { stroke: var(--ink); stroke-width: 1.8; }
 .board .stable-name { font: 800 14px system-ui, sans-serif; letter-spacing: 2px; text-anchor: middle; }
 .board .lane-number { font: 800 21px system-ui, sans-serif; text-anchor: middle; }
 .projections, .board .fx, .board .marker, .board .horse { pointer-events: none; }

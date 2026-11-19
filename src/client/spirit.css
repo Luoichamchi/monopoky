@@ -20,7 +20,6 @@
 .spirit-step { font: 600 19px Georgia,serif; text-anchor: middle; }
 .track-sheet { filter: drop-shadow(0 5px 3px #050e1788); }
 .stables-sheet .stable.active > rect:first-child { stroke: #fae6c5; stroke-width: 3; }
-.track-sheet .lane.active rect { stroke-width: 1.8; }
 .game[data-theme="spirit"] .horse, .game[data-theme="spirit"] .avatar, .game[data-theme="spirit"] .turn-portrait { --sigil-hue: 0deg; }
 .game[data-theme="spirit"] [data-seat="0"], .game[data-theme="spirit"][data-turn-seat="0"] .turn-portrait { --sigil-hue: 158deg; }
 .game[data-theme="spirit"] [data-seat="1"], .game[data-theme="spirit"][data-turn-seat="1"] .turn-portrait { --sigil-hue: 46deg; }
