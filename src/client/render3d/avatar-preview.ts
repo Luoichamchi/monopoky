@@ -32,7 +32,7 @@ export class AvatarPreview {
     this.controls.target.set(0, 0.5, 0);
     this.ro = new ResizeObserver(() => {
       const { clientWidth: w, clientHeight: h } = host;
-      this.renderer.setSize(w, h);
+      this.renderer.setSize(w, h, false); // CSS sizes the canvas: an inline px width would stop the card from shrinking
       this.camera.aspect = w / h || 1;
       this.camera.updateProjectionMatrix();
     });
