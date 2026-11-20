@@ -11,7 +11,7 @@ export interface Update {
 
 // Pacing contract with the renderer, so bots wait for animations to finish.
 // ponytail: estimated, not acknowledged by clients; add client "done" acks if animations get long/variable.
-export const TIMING = { hop: 150, roll: 700, kick: 650, tile: 550, banner: 900 };
+export const TIMING = { hop: 150, roll: 1400, kick: 650, tile: 550, banner: 900 };
 export function animMs(events: GameEvent[]): number {
   let ms = 0;
   for (const e of events) {
@@ -28,7 +28,15 @@ export function animMs(events: GameEvent[]): number {
 export function sanitizeAction(a: unknown): Action | null {
   if (!a || typeof a !== 'object') return null;
   const o = a as Record<string, unknown>;
-  if (o.type === 'roll' || o.type === 'pass') return { type: o.type };
+  if (o.type === 'pass') return { type: 'pass' };
+  if (o.type === 'roll') {
+    const t = o.toss as Record<string, unknown> | undefined;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
+    const [power, angle, seed] = [num(t?.power), num(t?.angle), num(t?.seed)];
+    if ([power, angle, seed].some(Number.isNaN)) return { type: 'roll' }; // the engine throws for them
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    return { type: 'roll', toss: { power: clamp(power, 0, 1), angle: clamp(angle, -Math.PI, Math.PI), seed: Math.floor(seed) >>> 0 } };
+  }
   if (o.type === 'move' && Number.isInteger(o.horse)) return { type: 'move', horse: o.horse as number };
   if (o.type === 'card' && typeof o.card === 'string' && Number.isInteger(o.target))
     return { type: 'card', card: o.card, target: o.target as number };

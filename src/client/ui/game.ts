@@ -46,7 +46,6 @@ export class GameScreen {
   private autoMove?: ReturnType<typeof setTimeout>;
   private conn: Conn;
   private keyHandler = (e: KeyboardEvent) => {
-    if (e.code === 'Space' && this.canRoll) (e.preventDefault(), this.send({ type: 'roll' }));
     if (e.code === 'Escape' && this.aiming) (this.aiming = undefined), this.refreshInput();
   };
 
@@ -200,11 +199,19 @@ export class GameScreen {
     }
     if (makeDice) {
       this.dice?.destroy();
-      this.dice = makeDice(this.el.querySelector('.dice-slot')!);
-      this.dice.onRoll = () => this.send({ type: 'roll' });
+      this.dice = makeDice(this.el.querySelector('.dice-slot')!, () => this.diceArena());
+      this.dice.onRoll = toss => this.send({ type: 'roll', toss });
     }
     this.shown = { ...l };
     this.say(before);
+  }
+
+  /** Where a thrown die may roll: the board. A full-table board is a square in the middle of the table. */
+  private diceArena() {
+    const r = this.el.querySelector('.board-slot')!.getBoundingClientRect();
+    if (!this.board?.fullTable) return r;
+    const s = Math.min(r.width, r.height) * 0.9;
+    return new DOMRect(r.x + (r.width - s) / 2, r.y + (r.height - s) / 2, s, s);
   }
 
   // ---------- events ----------
@@ -223,7 +230,7 @@ export class GameScreen {
         this.say(`${this.name(e.player)} đổ được <b>${e.value}</b>`);
         sfx.play('roll');
         void this.board.animate(e); // 3D atlas: the centre flag catches a gust
-        await this.dice.roll(e.value, this.color(e.player).main);
+        await this.dice.roll(e.value, this.color(e.player).main, e.toss);
         sfx.play('land');
         break;
       case 'move':
@@ -326,7 +333,7 @@ export class GameScreen {
       this.canRoll = true;
       this.el.querySelector<HTMLButtonElement>('[data-roll]')!.disabled = false;
       this.dice.setReady(true, this.color(s.turn).main);
-      this.say(`Lượt của <b>${this.name(s.turn)}</b> — bấm xúc xắc hoặc phím Space`);
+      this.say(`Lượt của <b>${this.name(s.turn)}</b> — giữ xúc xắc (hoặc phím Space) để lắc, thả hoặc vuốt để quăng`);
     } else {
       const moves = acts.filter(a => a.type === 'move') as Extract<Action, { type: 'move' }>[];
       if (acts.length === 1 && moves.length === 1) {

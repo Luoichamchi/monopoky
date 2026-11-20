@@ -17,4 +17,5 @@ Luật chơi chỉ nằm ở một chỗ. Phần hiển thị (ngựa, hiệu �
 - Client không tự tính luật và không tự sửa `GameState`, kể cả để "hiển thị cho kịp". Nếu UI cần thông tin thì engine phải phát thêm event.
 - Renderer (`render/`, `render3d/`) chỉ vẽ và tạo hiệu ứng hình. Âm thanh (`audio/`) được phát từ `ui/game.ts` theo event, không phát trong renderer.
 - Một hiệu ứng mới phải có mặt ở mọi renderer: `render/board-view.ts`, `render/classic-board.ts`, `render3d/board3d.ts`.
+- Chuyển động xúc xắc (giữ để lắc, quăng, lăn chậm dần) nằm ở `src/client/dice/` và dùng chung cho mọi skin xúc xắc (`render/dice.ts`, `render3d/dice3d.ts`). Skin chỉ vẽ `Pose`. Mặt xúc xắc vẫn do engine quyết định; cú quăng (`Toss`) chỉ đi kèm action/event để mọi máy phát lại giống nhau.
 - `session.ts` được phép biết thời lượng hoạt ảnh (`TIMING`, `animMs`), vì server cần chờ client diễn xong mới cho bot đi tiếp. Không đưa thêm thứ gì khác về đồ hoạ vào đây.

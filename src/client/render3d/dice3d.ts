@@ -2,19 +2,20 @@
 import * as THREE from 'three';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import type { Toss } from '../../core/types.ts';
 import { TIMING } from '../../session.ts';
-import { animate, done } from '../render/fx.ts';
+import { DiceDriver } from '../dice/driver.ts';
+import { tableFor } from '../dice/input.ts';
+import { FACE_AXES } from '../dice/motion.ts';
 import type { DiceRenderer } from '../render/renderer.ts';
 import { THEME } from '../render/theme.ts';
-import { GRADIENT, INK, disposeRenderer, noOutline } from './toon.ts';
+import { GRADIENT, INK, disposeRenderer } from './toon.ts';
 
 const DIE = 1; // edge length
-// BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z. Opposite faces sum to 7 like a real die.
-const FACE_VALUE = [3, 4, 1, 6, 2, 5];
-// rotation that brings each value's face to the top (+Y)
-const FACE_UP: Record<number, [number, number, number]> = {
-  1: [0, 0, 0], 6: [Math.PI, 0, 0], 3: [0, 0, Math.PI / 2], 4: [0, 0, -Math.PI / 2], 2: [-Math.PI / 2, 0, 0], 5: [Math.PI / 2, 0, 0],
-};
+// BoxGeometry face order (+X, -X, +Y, -Y, +Z, -Z) is the order of the shared motion's FACE_AXES.
+const FACE_VALUE = FACE_AXES.map(([, v]) => v);
+const TILT = THREE.MathUtils.degToRad(40); // camera tilt from straight down
+const UNIT = 0.5; // die edge as a share of the dice button's width
 const PIPS: Record<number, [number, number][]> = {
   1: [[0.5, 0.5]],
   2: [[0.27, 0.27], [0.73, 0.73]],
@@ -54,109 +55,116 @@ function skin(color: string): THREE.Material[] {
 }
 
 export class DiceView3D implements DiceRenderer {
-  onRoll?: () => void;
   private el: HTMLButtonElement;
+  private arena: () => DOMRect;
   private renderer: THREE.WebGLRenderer;
   private effect: OutlineEffect;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+  private camera = new THREE.OrthographicCamera();
+  private sun = new THREE.DirectionalLight(0xffffff, 2);
   private die: THREE.Mesh;
   private timer = new THREE.Timer();
   private ro: ResizeObserver;
-  private waiting = false;
+  private driver: DiceDriver;
+  private size = '';
+  private drawn = ''; // what the last frame showed: a still die is not re-rendered
 
-  constructor(host: HTMLElement) {
+  constructor(host: HTMLElement, arena: () => DOMRect) {
+    this.arena = arena;
     this.el = document.createElement('button');
     this.el.className = 'dice3d';
-    this.el.setAttribute('aria-label', 'Đổ xúc xắc');
+    this.el.setAttribute('aria-label', 'Đổ xúc xắc (nhấn giữ để lắc mạnh hơn, vuốt để quăng)');
     this.el.disabled = true;
-    this.el.onclick = () => this.waiting && this.onRoll?.();
     host.appendChild(this.el);
 
+    // the canvas covers the whole board so the die can be thrown across it; the button stays the grip
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.el.appendChild(this.renderer.domElement);
     this.effect = new OutlineEffect(this.renderer, { defaultThickness: 0.012, defaultColor: [INK.r, INK.g, INK.b] });
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xcdbdff, 1.8));
-    const sun = new THREE.DirectionalLight(0xffffff, 2);
-    sun.position.set(-2, 6, 3);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(512, 512);
-    Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 });
-    this.scene.add(sun);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), noOutline(new THREE.ShadowMaterial({ opacity: 0.22 })));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.scene.add(this.sun, this.sun.target);
 
     this.die = new THREE.Mesh(new RoundedBoxGeometry(DIE, DIE, DIE, 4, 0.16), skin(THEME.seats[0].main));
-    this.die.castShadow = true;
-    this.die.position.y = DIE / 2;
-    this.die.rotation.set(-0.35, 0.6, 0.1); // a little turned so it reads as 3D
     this.scene.add(this.die);
 
-    this.camera.position.set(0, 3.6, 3.4);
-    this.camera.lookAt(0, 0.9, 0);
-    this.ro = new ResizeObserver(() => {
-      const w = this.el.clientWidth, h = this.el.clientHeight;
-      if (!w || !h) return;
-      this.renderer.setSize(w, h);
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-    });
+    this.driver = new DiceDriver(
+      this.el,
+      () => tableFor(this.el.getBoundingClientRect(), this.arena(), this.unitPx),
+      () => {},
+    );
+    this.ro = new ResizeObserver(() => this.layout());
     this.ro.observe(this.el);
+    this.ro.observe(host.closest('.table') ?? host);
     this.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  set onRoll(fn: ((toss: Toss) => void) | undefined) {
+    this.driver.onRoll = fn;
+  }
+
+  private get unitPx() {
+    return (this.el.clientWidth || 120) * UNIT;
+  }
+
+  /** Canvas over board + button; orthographic camera so 1 unit = one die edge = unitPx on screen, like the 2D die. */
+  private layout() {
+    const k = this.unitPx, me = this.el.getBoundingClientRect(), a = this.arena();
+    if (!me.width || !a.width) return;
+    const [cx, cy] = [me.left + me.width / 2, me.top + me.height / 2];
+    const pad = 2 * k; // room for the hop
+    const left = Math.min(a.left, me.left) - pad, top = Math.min(a.top, me.top) - pad;
+    const w = Math.max(a.right, me.right) + pad - left, h = Math.max(a.bottom, me.bottom) + pad - top;
+    const key = [left - me.left, top - me.top, w, h, k].map(Math.round).join();
+    if (key === this.size) return;
+    this.size = key;
+    Object.assign(this.renderer.domElement.style, { left: `${left - me.left}px`, top: `${top - me.top}px`, width: `${w}px`, height: `${h}px` });
+    this.renderer.setSize(w, h, false);
+    Object.assign(this.camera, { left: (left - cx) / k, right: (left + w - cx) / k, top: -(top - cy) / k, bottom: -(top + h - cy) / k, near: 0.1, far: 100 });
+    this.camera.position.set(0, 0.5 + 30 * Math.cos(TILT), 30 * Math.sin(TILT));
+    this.camera.lookAt(0, 0.5, 0);
+    this.camera.updateProjectionMatrix();
   }
 
   private frame() {
     this.timer.update();
-    if (this.waiting) {
-      const t = this.timer.getElapsed();
-      this.die.position.y = DIE / 2 + 0.35 + Math.sin(t * 4) * 0.12;
-      this.die.rotation.y += 0.02;
+    const t = this.timer.getElapsed();
+    const p = this.driver.pose;
+    const shown = `${this.size}|${this.driver.ready}|${p.x},${p.y},${p.z},${p.q}|${(this.die.material as THREE.Material[])[0].uuid}`;
+    if (!this.driver.ready && shown === this.drawn) return;
+    this.drawn = shown;
+    this.die.position.set(p.x, p.y, p.z / Math.cos(TILT)); // z stretched so the tilted view maps it 1:1 like the 2D die
+    this.die.quaternion.set(...p.q);
+    if (this.driver.ready && this.driver.home) {
+      this.die.position.y += 0.3 + Math.sin(t * 4) * 0.1; // hovering: grab me
+      this.die.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(THREE.Object3D.DEFAULT_UP, t * 1.2));
     }
+    this.sun.position.set(this.die.position.x - 2, 6, this.die.position.z + 3);
+    this.sun.target.position.copy(this.die.position);
     this.effect.render(this.scene, this.camera);
   }
 
   setReady(on: boolean, color: string) {
-    this.waiting = on;
     this.el.disabled = !on;
     this.el.classList.toggle('ready', on);
     if (color) {
       this.el.style.setProperty('--c', color);
       this.die.material = skin(color);
     }
+    if (on) this.layout();
+    this.driver.setReady(on);
   }
 
-  /** Toss, tumble, bounce, and land with `value` on top. */
-  async roll(value: number, color: string) {
+  /** Replay the throw (shared motion), landing with `value` on top. */
+  async roll(value: number, color: string, toss: Toss) {
     this.setReady(false, color);
-    const ground = DIE / 2;
-    const q = new THREE.Quaternion()
-      .setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 1.2) // keep the top face readable
-      .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...FACE_UP[value])));
-    const end = new THREE.Euler().setFromQuaternion(q);
-    // whole extra turns: it visibly tumbles but ends exactly on `end`
-    const spin = (a: number) => a + TAU * (1 + Math.floor(Math.random() * 2)) * (Math.random() < 0.5 ? -1 : 1);
-    const d = TIMING.roll - 120;
-    const p = this.die.position;
-    await Promise.all([
-      done(animate(p, {
-        y: [
-          { to: ground + 1.3, duration: d * 0.35, ease: 'outQuad' },
-          { to: ground, duration: d * 0.35, ease: 'inQuad' },
-          { to: ground + 0.25, duration: d * 0.15, ease: 'outQuad' },
-          { to: ground, duration: d * 0.15, ease: 'inQuad' },
-        ],
-      })),
-      done(animate(this.die.rotation, { x: spin(end.x), y: spin(end.y), z: spin(end.z), duration: d * 0.85, ease: 'outCubic' })),
-    ]);
-    this.die.rotation.copy(end);
+    this.layout();
+    await this.driver.roll(value, toss, TIMING.roll);
   }
 
   destroy() {
+    this.driver.destroy();
     this.ro.disconnect();
     disposeRenderer(this.renderer, this.scene);
     this.el.remove();

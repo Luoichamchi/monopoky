@@ -75,6 +75,8 @@
   background: var(--paper); border: 2.5px solid var(--edge); border-radius: 13px;
   overflow: hidden; box-shadow: 4px 5px 0 #393355;
 }
+.arena-game .dock { overflow: visible; } /* the die is thrown out of it onto the board */
+.arena-game .turn-portrait { border-radius: 10px 10px 0 0; }
 .arena-game .turn-portrait {
   isolation: isolate; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px;
   height: clamp(83px,13vh,128px); overflow: hidden; padding: 12px 45% 12px 16px;

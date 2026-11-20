@@ -74,11 +74,12 @@
   border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
   background: linear-gradient(125deg, #222c41f2, #141c2df5); box-shadow: 0 10px 28px #03081138;
 }
+:scope .dock { overflow: visible; } /* the die is thrown out of it onto the board */
 :scope .turn-portrait {
   isolation: isolate; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 7px;
   height: clamp(88px, 14vh, 138px); overflow: hidden; padding: 14px 46% 14px 20px; background:
     linear-gradient(90deg, #273042, #25324975), url('/art/tinh-son.jpg') center 75% / cover;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); border-radius: 11px 11px 0 0;
 }
 .turn-portrait::after {
   content: ''; position: absolute; z-index: -1; width: 52%; right: -2%; top: -3%; bottom: -35%;

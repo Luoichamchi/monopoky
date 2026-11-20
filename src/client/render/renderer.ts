@@ -1,6 +1,6 @@
 // Contracts between the game screen and the visual templates. Board and dice are independent:
 // any board template can be combined with any dice template, and both can be swapped mid-game.
-import type { GameEvent, GameState } from '../../core/types.ts';
+import type { GameEvent, GameState, Toss } from '../../core/types.ts';
 import type { BoardTheme } from './board-themes.ts';
 
 export type TemplateKind = '2d' | '3d';
@@ -17,15 +17,16 @@ export interface BoardRenderer {
   destroy(): void; // must free everything (WebGL contexts are limited per page)
 }
 
+/** Dice skins draw the shared motion in dice/motion.ts and use dice/input.ts for hold-and-throw. */
 export interface DiceRenderer {
-  onRoll?: () => void; // set by the screen: the player clicked the die
-  roll(value: number, color: string): Promise<void>; // the value is decided by the rules, this only shows it
-  setReady(on: boolean, color: string): void; // waiting for a click
+  onRoll?: (toss: Toss) => void; // set by the screen: the player let go of the die
+  roll(value: number, color: string, toss: Toss): Promise<void>; // the value is decided by the rules, this only replays the throw
+  setReady(on: boolean, color: string): void; // waiting for the player to grab the die
   destroy(): void;
 }
 
 export type MakeBoard = (host: HTMLElement) => BoardRenderer;
-export type MakeDice = (host: HTMLElement) => DiceRenderer;
+export type MakeDice = (host: HTMLElement, arena: () => DOMRect) => DiceRenderer; // arena = where the die may roll (the board)
 
 /** 3D templates are fetched on first use (three.js chunk + model). Any failure falls back to 2D. */
 async function pick<T>(kind: TemplateKind, load2d: () => Promise<T>, load3d: () => Promise<T>, what: string): Promise<T> {
@@ -33,12 +34,12 @@ async function pick<T>(kind: TemplateKind, load2d: () => Promise<T>, load3d: () 
   if (kind !== '3d') return make2d;
   try {
     const make3d = await load3d();
-    return ((host: HTMLElement) => {
+    return ((...args: unknown[]) => {
       try {
-        return (make3d as (h: HTMLElement) => unknown)(host);
+        return (make3d as (...a: unknown[]) => unknown)(...args);
       } catch (e) {
         console.warn(`3D ${what} unavailable (WebGL?), using 2D`, e);
-        return (make2d as (h: HTMLElement) => unknown)(host);
+        return (make2d as (...a: unknown[]) => unknown)(...args);
       }
     }) as T;
   } catch (e) {
@@ -71,11 +72,11 @@ export const loadDice = (kind: TemplateKind): Promise<MakeDice> =>
     kind,
     async () => {
       const { DiceView } = await import('./dice.ts');
-      return host => new DiceView(host);
+      return (host, arena) => new DiceView(host, arena);
     },
     async () => {
       const { DiceView3D } = await import('../render3d/dice3d.ts');
-      return host => new DiceView3D(host);
+      return (host, arena) => new DiceView3D(host, arena);
     },
     'dice',
   );

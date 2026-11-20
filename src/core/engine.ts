@@ -1,6 +1,6 @@
 // Rules engine. Pure & deterministic given an rng. Mutates the state passed in (callers clone when they need to).
 import { GATE, HOME, HORSES, STABLE, WIN_STEP, absOf, horseAt, kick, onTrack, seatOf } from './board.ts';
-import type { Action, Ctx, GameEvent, GameState, Horse, PlayerConfig, Rng, Variant } from './types.ts';
+import type { Action, Ctx, GameEvent, GameState, Horse, PlayerConfig, Rng, Toss, Variant } from './types.ts';
 import { getVariant } from './variants/index.ts';
 
 export function createGame(variantId: string, players: PlayerConfig[], rng: Rng): GameState {
@@ -79,7 +79,7 @@ export function step(s: GameState, a: Action, rng: Rng): GameEvent[] {
   const ctx: Ctx = { rng, ev: [], roll: value => applyRoll(s, value, ctx) };
   switch (a.type) {
     case 'roll':
-      applyRoll(s, rollDie(rng), ctx);
+      applyRoll(s, rollDie(rng), ctx, a.toss);
       break;
     case 'move':
       doMove(s, v, s.horses[a.horse], ctx);
@@ -95,11 +95,12 @@ export function step(s: GameState, a: Action, rng: Rng): GameEvent[] {
   return ctx.ev;
 }
 
-/** Set the die. If the only option left is passing, pass automatically. */
-export function applyRoll(s: GameState, value: number, ctx: Ctx) {
+/** Set the die. If the only option left is passing, pass automatically. Bots and rerolls get a random throw. */
+export function applyRoll(s: GameState, value: number, ctx: Ctx, toss?: Toss) {
   s.dice = value;
   s.phase = 'move';
-  ctx.ev.push({ t: 'roll', player: s.turn, value });
+  toss ??= { power: 0.35 + ctx.rng() * 0.4, angle: (ctx.rng() - 0.5) * 1.2, seed: Math.floor(ctx.rng() * 2 ** 31) };
+  ctx.ev.push({ t: 'roll', player: s.turn, value, toss });
   const acts = legalActions(s);
   if (acts.length === 1 && acts[0].type === 'pass') {
     ctx.ev.push({ t: 'pass', player: s.turn });

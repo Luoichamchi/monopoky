@@ -34,14 +34,24 @@ export interface GameState {
   round: number;
 }
 
+/**
+ * How the die was thrown. Never changes the value (the engine rolls that); it only lets every screen
+ * replay the same throw. angle = radians off "straight at the board", power 0..1, seed = tumble variation.
+ */
+export interface Toss {
+  power: number;
+  angle: number;
+  seed: number;
+}
+
 export type Action =
-  | { type: 'roll' }
+  | { type: 'roll'; toss?: Toss }
   | { type: 'move'; horse: number }
   | { type: 'pass' }
   | { type: 'card'; card: string; target: number }; // target = horse id, -1 if none
 
 export type GameEvent =
-  | { t: 'roll'; player: number; value: number }
+  | { t: 'roll'; player: number; value: number; toss: Toss }
   | { t: 'move'; horse: number; path: number[]; jump?: boolean } // successive pos values
   | { t: 'kick'; horse: number; by: number } // horse sent back to stable
   | { t: 'tile'; horse: number; tile: string }
