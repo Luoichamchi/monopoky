@@ -16,7 +16,7 @@ import { mergeStatic } from './merge.ts';
 import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
 import { TILE_SKIN } from '../render/skins.ts';
 import { AVATARS, isAvatar } from '../../protocol.ts';
-import { loadAvatar } from './avatar-preview.ts';
+import { loadAvatar, rimLit } from './avatar-preview.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 
 // ---------- assets ----------
@@ -609,7 +609,7 @@ export class Board3D implements BoardRenderer {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       m.castShadow = true;
-      const mat = noOutline((m.material as GlowMaterial).clone());
+      const mat = rimLit(noOutline((m.material as GlowMaterial).clone()), 0.9); // a bit brighter: the avatar is only ~80 px tall here
       glow.push(Object.assign(mat, { emissive: new THREE.Color(seatColor(seat).main).multiplyScalar(0.35), emissiveIntensity: 0 })); // a tint, not a dye
       m.material = mat;
     });
