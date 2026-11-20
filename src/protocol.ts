@@ -15,11 +15,14 @@ export interface RoomView {
 
 /** Who can stand on a mountain (public/models/avatars/<id>.glb). Players carry the id; clients draw it. */
 export const AVATARS = [
-  { id: 'ordeval', name: 'Ordeval', title: 'Hiệp sĩ vàng' },
-  { id: 'seraphielle', name: 'Seraphielle', title: 'Thiên thần' },
-  { id: 'aurencast', name: 'Aurencast', title: 'Hiệp sĩ bạc' },
-  { id: 'noxariel', name: 'Noxariel', title: 'Hiệp sĩ tử thần' },
-  { id: 'nocturne', name: 'Nocturne', title: 'Thợ săn bóng đêm' },
+  { id: 'ordeval', name: 'Ordeval' },
+  { id: 'seraphielle', name: 'Seraphielle' },
+  { id: 'aurencast', name: 'Aurencast' },
+  { id: 'noxariel', name: 'Noxariel' },
+  { id: 'nocturne', name: 'Nocturne' },
+  { id: 'velmirie', name: 'Velmirie' },
+  { id: 'succubus', name: 'Succubus' },
+  { id: 'queen', name: 'Queen' },
 ];
 export const isAvatar = (id: unknown): id is string => AVATARS.some(a => a.id === id);
 
@@ -30,7 +33,7 @@ export function assignAvatars<T extends { avatar?: string; bot?: unknown }>(play
   const rest = players.filter(p => !keep(p));
   for (const p of rest) {
     const free = AVATARS.filter(a => !taken.has(a.id));
-    p.avatar = free[Math.floor(rng() * free.length)].id; // 5 avatars ≥ 4 seats: never empty
+    p.avatar = free[Math.floor(rng() * free.length)].id; // 8 avatars ≥ 4 seats: never empty
     taken.add(p.avatar);
   }
   return players;

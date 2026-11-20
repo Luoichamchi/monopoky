@@ -1,5 +1,6 @@
 // App shell: game mode → avatar → (offline game vs 3 bots | online lobby → online game).
 import './style.css';
+import './menu.css';
 import type { Socket } from 'socket.io-client';
 import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
@@ -14,6 +15,7 @@ import { look, saveLook } from './look.ts';
 import type { TemplateKind } from './render/renderer.ts';
 import { GameScreen } from './ui/game.ts';
 import { esc, save, store } from './ui/dom.ts';
+import { icon } from './ui/icons.ts';
 
 const app = document.getElementById('app')!;
 const KINDS: SeatKind[] = ['human', 'easy', 'normal', 'hard', 'expert', 'off'];
@@ -50,11 +52,13 @@ function seatEditor(seats: SeatKind[], editable: (i: number) => boolean, names: 
     .join('');
 }
 
+const LOGO = `<h1 class="logo"><span class="eyebrow">${icon('star')} Tinh bàn Thiên Mã</span>Cờ Cá Ngựa</h1>`;
+
 const variantPicker = (current: string, disabled = false) =>
   `<div class="variants">${VARIANTS.map(
     v => `<label class="variant ${v.id === current ? 'on' : ''}" title="${esc(v.desc)}">
       <input type="radio" name="variant" value="${v.id}" ${v.id === current ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
-      <b>${v.id === 'party' ? '🎉 ' : '🐎 '}${esc(v.name)}</b><small>${esc(v.desc)}</small></label>`,
+      <b>${icon(v.id === 'party' ? 'star' : 'hoof')}${esc(v.name)}</b><small>${esc(v.desc)}</small></label>`,
   ).join('')}</div>`;
 
 // ---------------- menu: 1. game mode ----------------
@@ -64,14 +68,15 @@ function menu() {
     app.innerHTML = `
       <main class="menu"><div class="menu-grid">
         <div class="menu-side">
-          <h1 class="logo"><span>CỜ</span><span>CÁ</span><span>NGỰA</span></h1>
+          ${LOGO}
           <p class="tagline">Phiên bản anime — đổ xúc xắc, đá ngựa, phá đảo!</p>
         </div>
         <section class="card">
-          <h3 class="h-row">Chọn kiểu chơi
+          <div class="h-row"><span class="eyebrow">Bước 1 / 2</span>
             <span class="seg" role="radiogroup" aria-label="Giao diện" title="Bản đồ 2D hoặc 3D. Trong ván bấm ⚙ để đổi.">${(['2d', '3d'] as const)
               .map(k => `<label><input type="radio" name="look" value="${k}" ${look.board === k ? 'checked' : ''}>${k.toUpperCase()}</label>`)
-              .join('')}</span></h3>${variantPicker(prefs.variant)}
+              .join('')}</span></div>
+          <h3>Chọn kiểu chơi</h3>${variantPicker(prefs.variant)}
           <button class="btn big" id="next">Tiếp: chọn avatar →</button>
         </section>
       </div></main>`;
@@ -100,27 +105,32 @@ function pickAvatar(joinId?: string) {
   screen(() => {
     app.innerHTML = `
       <main class="menu"><section class="card avatar-pick">
+        <div class="avatar-stage" aria-hidden="true"><strong class="stage-cap"></strong></div>
+        <div class="avatar-side">
+        <span class="eyebrow">${joinId ? `Phòng ${esc(joinId)}` : 'Bước 2 / 2'}</span>
         <h3>Chọn avatar</h3>
-        <div class="avatar-stage" aria-hidden="true"></div>
         <div class="avatar-list" role="radiogroup" aria-label="Avatar">${AVATARS.map(a => `
           <label class="variant avatar-opt ${a.id === prefs.avatar ? 'on' : ''}">
-            <input type="radio" name="avatar" value="${a.id}" ${a.id === prefs.avatar ? 'checked' : ''}><b>${a.name}</b><small>${a.title}</small>
+            <input type="radio" name="avatar" value="${a.id}" ${a.id === prefs.avatar ? 'checked' : ''}><b>${a.name}</b>
           </label>`).join('')}</div>
         <label class="field">Tên của bạn <input id="name" maxlength="16" placeholder="Sakura" value="${esc(prefs.name)}"></label>
         ${joinId
           ? `<button class="btn big" id="join">▶ Vào phòng ${esc(joinId)}</button>`
           : `<button class="btn big" id="offline">▶ Chơi với máy</button>
-        <h3>Hoặc chơi online với bạn bè</h3>
+        <p class="or">hoặc chơi online với bạn bè</p>
         <div class="row">
           <button class="btn" id="create">Tạo phòng</button>
           <input id="code" maxlength="4" placeholder="MÃ PHÒNG" class="code" aria-label="Mã phòng">
           <button class="btn ghost" id="join">Vào</button>
         </div>`}
-        <div class="row"><button class="btn ghost" id="back">← ${joinId ? 'Menu' : 'Kiểu chơi'}</button></div>
+        <div class="row" style="margin-top:10px"><button class="btn ghost" id="back">← ${joinId ? 'Menu' : 'Kiểu chơi'}</button></div>
+        </div>
       </section></main>`;
     const $ = <T extends HTMLElement>(sel: string) => app.querySelector<T>(sel)!;
     let preview: { show(id: string): unknown; destroy(): void } | undefined;
     let gone = false;
+    const caption = (id: string) => ($('.stage-cap').textContent = AVATARS.find(a => a.id === id)!.name);
+    caption(prefs.avatar);
     import('./render3d/avatar-preview.ts')
       .then(({ AvatarPreview }) => {
         if (gone) return;
@@ -133,6 +143,7 @@ function pickAvatar(joinId?: string) {
         prefs.avatar = r.value;
         persist();
         app.querySelectorAll('.avatar-opt').forEach(l => l.classList.toggle('on', l.contains(r)));
+        caption(r.value);
         preview?.show(r.value);
       }),
     );
@@ -235,7 +246,7 @@ function lobby(sock: Socket, r: RoomView) {
   app.innerHTML = `
     <main class="menu"><div class="menu-grid">
       <div class="menu-side">
-        <h1 class="logo"><span>CỜ</span><span>CÁ</span><span>NGỰA</span></h1>
+        ${LOGO}
         <section class="card lobby">
           <h3>Phòng <span class="room-code">${r.id}</span></h3>
           <p class="hint">Gửi link này cho bạn bè:</p>

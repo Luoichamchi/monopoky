@@ -53,37 +53,7 @@ button, input, select { font: inherit; color: inherit; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .err { color: #d61f5b; min-height: 1.2em; margin: 6px 0 0; }
 
-/* ---------- menu / lobby: one screen, two columns on wide windows ---------- */
-.menu { height: 100dvh; padding: 16px; display: grid; place-items: center; overflow: auto; }
-.menu-grid { width: min(1060px, 100%); display: grid; grid-template-columns: 1fr 1.2fr; gap: 22px; align-items: center; }
-.menu-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.logo { display: flex; justify-content: center; gap: 12px; margin: 0; padding-top: .18em; font-family: var(--sfx); font-weight: 400; font-size: clamp(2.6rem, min(9vw, 11vh), 5.5rem); letter-spacing: 2px; line-height: 1; }
-.logo span {
-  color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill;
-  text-shadow: 5px 6px 0 var(--ink); display: inline-block; animation: bob 2.4s ease-in-out infinite;
-}
-.logo span:nth-child(1) { color: var(--pink); }
-.logo span:nth-child(2) { color: var(--cyan); animation-delay: -.8s; }
-.logo span:nth-child(3) { color: var(--sun); animation-delay: -1.6s; }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(3deg); } }
-.tagline { text-align: center; font-weight: 700; margin: 0; }
-.card { background: #fffffff0; border: 3px solid var(--ink); border-radius: 22px; padding: 14px 18px; box-shadow: 0 7px 0 var(--ink); min-width: 0; }
-.card h3 { margin: 10px 0 6px; line-height: 1.2; }
-.card h3:first-child { margin-top: 0; }
-.field { display: flex; flex-direction: column; font-weight: 700; gap: 4px; }
-.field input, .code, .link, select {
-  border: 3px solid var(--ink); border-radius: 12px; padding: 5px 10px; background: #fff;
-}
-.code { width: 8.5em; text-transform: uppercase; letter-spacing: 3px; font-weight: 800; text-align: center; }
-.link { flex: 1; min-width: 0; }
-.variants { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.variant { border: 3px solid var(--ink); border-radius: 16px; padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; background: #fff; transition: transform .15s; }
-.variant input { position: absolute; opacity: 0; pointer-events: none; }
-.variant.on { background: linear-gradient(135deg, #ffe3f0, #e3f6ff); box-shadow: 0 4px 0 var(--ink); transform: translateY(-2px); }
-.variant:has(input:focus-visible) { outline: 3px solid var(--violet); }
-.variant small { line-height: 1.25; }
-.seats { display: grid; gap: 7px; }
-.h-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .seg { display: inline-flex; border: 3px solid var(--ink); border-radius: 999px; overflow: hidden; font-size: .85rem; box-shadow: 0 3px 0 var(--ink); }
 .seg label { padding: 0 12px; cursor: pointer; font-weight: 800; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
@@ -96,13 +66,6 @@ button, input, select { font: inherit; color: inherit; }
 .full-board .panel-slot, .full-board .dock { position: relative; z-index: 1; pointer-events: none; }
 .full-board .dock { z-index: 2; } /* a thrown die flies over the player panels */
 .full-board .pcard, .full-board .dock .btn, .full-board .dock .dice, .full-board .dock .dice3d { pointer-events: auto; }
-/* menu step 2: avatar picker with a turntable preview */
-.avatar-pick { width: min(100%, 620px); display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-.avatar-pick h3 { margin: 6px 0 0; }
-.avatar-stage { height: clamp(200px, 38dvh, 380px); border-radius: 16px; overflow: hidden; touch-action: none; cursor: grab; background: radial-gradient(circle at 50% 75%, #4a3a86, #161b36 70%); border: 3px solid var(--ink); }
-.avatar-stage canvas { display: block; width: 100%; height: 100%; }
-.avatar-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; }
-.avatar-opt small { opacity: .8; }
 /* 3D board: no player panels (the avatars stand for the players), the turn's cards sit by the dice */
 .full-board .panel-slot { display: none; }
 .full-board .topbar .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* screen readers only */
@@ -124,35 +87,6 @@ button, input, select { font: inherit; color: inherit; }
 .look .look-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; font-size: 1.1rem; }
 .look .seg { font-size: 1rem; }
 .look .hint { opacity: .8; font-size: .9rem; }
-.seat { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; padding: 4px 8px 4px 5px; border-radius: 14px; background: var(--l); border: 3px solid var(--ink); }
-.seat-dot { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: #fff; border: 3px solid var(--ink); font-size: 18px; }
-.seat-name { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.room-code { margin-left: .3em; font-family: var(--sfx); font-size: 2.4rem; letter-spacing: 4px; color: var(--pink); -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
-@media (max-width: 760px), (max-aspect-ratio: 1/1) {
-  .menu { place-items: start center; }
-  .menu-grid { grid-template-columns: 1fr; gap: 14px; max-width: 560px; }
-  .menu-grid > .card { order: 1; } /* phone: play card right under the logo, online last */
-  .menu-side { display: contents; }
-  .menu-side .card { order: 2; }
-  .tagline, .variant small { display: none; } /* description stays available as a tooltip */
-  .logo { font-size: clamp(2.4rem, 12vw, 3.4rem); }
-  .field { flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; }
-  .field input { flex: 1; min-width: 0; }
-  .variant { padding: 4px 8px; font-size: .92rem; white-space: nowrap; }
-  .seats { gap: 5px; }
-  .seat { padding-block: 2px; }
-  .card h3 { margin: 8px 0 4px; }
-  .row { flex-wrap: nowrap; }
-  .code { width: auto; flex: 1; min-width: 0; letter-spacing: 1px; }
-  .code::placeholder { letter-spacing: 0; font-size: .85em; }
-  .lobby .hint { display: none; }
-}
-@media (max-height: 820px) {
-  .card { padding: 10px 14px; }
-  .btn.big { margin-top: 10px; padding: 6px 20px; }
-  .variant small { font-size: .75rem; }
-  .seat-dot { width: 28px; height: 28px; font-size: 16px; }
-}
 
 /* ---------- game layout: everything inside one viewport ---------- */
 .game { height: 100dvh; display: flex; flex-direction: column; padding: 12px 16px 16px; gap: 10px; overflow: hidden; }

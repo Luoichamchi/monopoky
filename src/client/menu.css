@@ -1,0 +1,120 @@
+/* Menu, avatar picker and lobby: the game table's night sky and gold trim (same palette as atlas.css). */
+@scope (.menu) {
+:scope {
+  --gold: #e2c892; --gold-hi: #fae6b1; --line: #c6aa773e; --hair: #ffffff17; --cream: #f3ebd9; --muted: #b6bac8;
+  --display: 'Cormorant Garamond', Georgia, serif;
+  --ui: 'Be Vietnam Pro', system-ui, sans-serif;
+  height: 100dvh; padding: 24px 16px; display: grid; place-items: center; overflow: auto;
+  font-family: var(--ui); color: var(--cream);
+  background: linear-gradient(180deg, #0a1020b8, #0c132666 60%, #101b3040), url('/art/tinh-son.jpg') center / cover, #151e32;
+}
+:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+
+.menu-grid { width: min(1040px, 100%); display: grid; grid-template-columns: 1fr minmax(0, 1.15fr); gap: clamp(24px, 5vw, 72px); align-items: center; }
+.menu-side { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.logo {
+  margin: 0; display: flex; flex-direction: column; gap: 16px;
+  font: 600 clamp(3rem, min(7.5vw, 12vh), 5.6rem)/.95 var(--display); letter-spacing: -.02em; text-shadow: 0 4px 24px #040710;
+}
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 9px; color: var(--gold);
+  font: 600 11px/1.2 var(--ui); letter-spacing: .18em; text-transform: uppercase; text-shadow: none;
+}
+.eyebrow::before { content: ''; width: 24px; height: 1px; background: currentColor; }
+.eyebrow .ui-icon { fill: currentColor; }
+.tagline { margin: -8px 0 0; color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 34ch; }
+
+.card { min-width: 0; padding: 24px 26px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(125deg, #222c41f2, #141c2df5); box-shadow: 0 18px 50px #03081166; }
+.card h3 { margin: 18px 0 12px; font: 600 28px/1.1 var(--display); }
+.card h3:first-child, .h-row + h3 { margin-top: 6px; }
+.h-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hint, .lobby p { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+
+/* buttons: gold for the way forward, hairline for everything else (like the game's topbar) */
+.btn {
+  border: 1px solid #ead8ae; border-radius: 6px; padding: 9px 16px; box-shadow: none; text-shadow: none;
+  background: linear-gradient(#ead4a7, #cbae77); color: #252530; font: 600 14px/1.2 var(--ui); transition: filter .15s, transform .08s;
+}
+.btn:hover { transform: none; filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); box-shadow: none; }
+.btn.ghost { border-color: var(--line); background: #ffffff08; color: #dfdece; }
+.btn.ghost:hover { background: #ffffff14; color: #fff3ce; filter: none; }
+.btn.big { width: 100%; margin-top: 20px; padding: 13px 20px; font: 700 23px/1 var(--display); letter-spacing: .01em; }
+
+.seg { display: inline-flex; border: 1px solid #887b60; border-radius: 6px; background: #171e30; box-shadow: none; overflow: hidden; font: 600 12px/1 var(--ui); }
+.seg label { padding: 7px 12px; color: var(--muted); }
+.seg label:has(input:checked) { background: #d8bd89; color: #242635; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
+
+.field { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; color: var(--gold); font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+.field input, .code, .link, select {
+  border: 1px solid #ffffff24; border-radius: 6px; padding: 10px 12px; background: #0b1120cc; color: var(--cream);
+  font: 500 15px/1.2 var(--ui); letter-spacing: normal; text-transform: none;
+}
+input:focus, select:focus { border-color: var(--gold); }
+input::placeholder { color: #7d8396; }
+select option { background: #151e32; }
+.code { width: 9.5em; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; text-align: center; }
+.link { flex: 1; min-width: 0; }
+.or { display: flex; align-items: center; gap: 12px; margin: 20px 0 12px; color: var(--muted); font-size: 12px; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--hair); }
+
+/* step 1: game mode tiles */
+.variants { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.variant { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; cursor: pointer; border: 1px solid var(--hair); border-radius: 10px; background: #0b1120a6; transition: border-color .15s, background .15s; }
+.variant:hover { border-color: #c6aa7799; }
+.variant input { position: absolute; opacity: 0; pointer-events: none; }
+.variant:has(input:disabled) { cursor: default; }
+.variant b { display: flex; align-items: center; gap: 9px; font: 600 23px/1.1 var(--display); }
+.variant b .ui-icon { color: var(--gold); width: 19px; height: 19px; }
+.variant small { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+.variant.on { border-color: var(--gold); background: linear-gradient(160deg, #e2c89229, #0b112099 70%); box-shadow: 0 0 26px #e2c89222; }
+
+/* step 2: avatar turntable on a summit, roster-style list beside it */
+.avatar-pick { width: min(100%, 1040px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); padding: 0; overflow: hidden; }
+.avatar-stage {
+  position: relative; min-height: 440px; touch-action: none; cursor: grab; border-right: 1px solid var(--line);
+  background: linear-gradient(#0b1120d9, #0b112059 70%), url('/art/tinh-son.jpg') center 85% / cover;
+}
+.avatar-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.stage-cap { position: absolute; z-index: 1; left: 26px; top: 24px; pointer-events: none; font: 600 clamp(34px, 4vw, 52px)/1 var(--display); text-shadow: 0 2px 16px #040710; }
+.avatar-side { padding: 26px 28px; min-width: 0; }
+.avatar-list { display: flex; flex-direction: column; border-top: 1px solid var(--hair); }
+.avatar-opt { padding: 10px 12px; border: 0; border-bottom: 1px solid var(--hair); border-radius: 0; background: transparent; }
+.avatar-opt b { font-size: 21px; }
+.avatar-opt.on { background: linear-gradient(90deg, #e2c8922e, transparent); box-shadow: inset 2px 0 var(--gold); }
+
+/* lobby seats */
+.seats { display: grid; gap: 7px; }
+.seat {
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; padding: 6px 8px 6px 6px;
+  border: 1px solid var(--hair); border-radius: 8px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 20%, transparent), #0b112080);
+}
+.seat-dot { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; background: var(--c); color: #fff; font-size: 17px; }
+.seat-name { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat select { padding: 6px 8px; font-size: 13px; }
+.room-code { margin-left: .3em; font: 700 1.5em/1 var(--display); letter-spacing: 4px; color: var(--gold); }
+
+@media (max-width: 760px), (max-aspect-ratio: 1/1) {
+  :scope { place-items: start center; padding: 16px; }
+  .menu-grid { grid-template-columns: 1fr; gap: 18px; max-width: 560px; }
+  .menu-grid > .card { order: 1; } /* phone: play card right under the logo, online last */
+  .menu-side { display: contents; }
+  .menu-side .card { order: 2; }
+  .logo { align-items: center; text-align: center; gap: 10px; font-size: clamp(2.6rem, 13vw, 3.6rem); }
+  .tagline { display: none; }
+  .card { padding: 18px; }
+  .variants { grid-template-columns: 1fr; }
+  .row { flex-wrap: nowrap; }
+  .code { width: auto; flex: 1; min-width: 0; letter-spacing: 1px; }
+  .code::placeholder { letter-spacing: 0; font-size: .85em; }
+  .avatar-pick { grid-template-columns: minmax(0, 1fr); padding: 0; }
+  .avatar-stage { min-height: 0; height: clamp(220px, 38dvh, 360px); border-right: 0; border-bottom: 1px solid var(--line); }
+  .stage-cap { left: 18px; top: 16px; }
+  .avatar-side { padding: 18px; }
+  .avatar-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(98px, 1fr)); gap: 6px; border: 0; }
+  .avatar-opt { padding: 8px 10px; border: 1px solid var(--hair); border-radius: 8px; }
+  .avatar-opt b { font-size: 18px; }
+  .avatar-opt.on { border-color: var(--gold); box-shadow: none; }
+}
+}
