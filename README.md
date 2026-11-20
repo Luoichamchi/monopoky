@@ -28,15 +28,29 @@ npm run bench        # bot tự đấu: node test/bench.ts [classic|party] [số
 npm run models       # nén model .glb vừa xuất từ Blender (meshopt); file đã nén thì bỏ qua
 ```
 
-## Deploy lên server riêng
+## Deploy lên server riêng (chess.tst.io.vn qua Cloudflare Tunnel)
 
-```bash
-docker compose up -d --build        # → http://<ip-server>:3000
-```
+Server không cần mở cổng hay có IP tĩnh: container `cloudflared` tự nối ra Cloudflare, Cloudflare lo HTTPS và WebSocket.
 
-Không dùng Docker: `npm ci && npm run build && npm start` (đổi cổng bằng biến `PORT`).
-Muốn dùng tên miền + HTTPS thì đặt reverse proxy phía trước, nhớ bật WebSocket. Ví dụ với Caddy:
-`your.domain { reverse_proxy localhost:3000 }`. Với Nginx cần thêm header `Upgrade`/`Connection`.
+1. Tên miền `tst.io.vn` phải đang dùng nameserver của Cloudflare (Cloudflare → *Add a site*).
+2. Cloudflare dashboard → **Zero Trust → Networks → Tunnels → Create a tunnel** → loại *Cloudflared* → đặt tên (ví dụ `chess`).
+   Ở bước cài đặt, chọn *Docker* và chỉ copy phần token (chuỗi dài sau `--token`).
+3. Trong tunnel đó, tab **Public Hostname → Add**: subdomain `chess`, domain `tst.io.vn`,
+   service `HTTP` → `co-ca-ngua:3000`. Cloudflare tự tạo bản ghi DNS `chess.tst.io.vn`.
+4. Trên server, trong thư mục repo:
+   ```bash
+   echo "CLOUDFLARE_TUNNEL_TOKEN=<token>" > .env   # .env không được commit
+   docker compose up -d --build
+   docker compose logs -f cloudflared              # chờ dòng "Registered tunnel connection"
+   ```
+5. Mở https://chess.tst.io.vn. Cập nhật bản mới: `git pull && docker compose up -d --build`.
+
+Game cũng nghe ở `http://127.0.0.1:3000` trên chính server (để kiểm tra), không mở ra ngoài.
+Không cần chỉnh gì thêm trong Cloudflare: WebSocket bật sẵn, file trong `/assets/` được cache lâu (tên có hash),
+model và ảnh thì trình duyệt hỏi lại và nhận 304 nếu chưa đổi.
+
+Không dùng Docker: `npm ci && npm run build && npm start` (đổi cổng bằng biến `PORT`), rồi chạy
+`cloudflared tunnel run --token <token>` với service trỏ tới `http://localhost:3000`.
 
 Mở game bằng `localhost` thì link phòng tự đổi sang IP mạng LAN của máy (chỉ bạn bè cùng Wi-Fi vào được; bạn ở xa cần deploy hoặc chạy `npm run build && npm start` rồi mở tunnel, ví dụ `cloudflared tunnel --url http://localhost:3000`, và gửi link tunnel).
 

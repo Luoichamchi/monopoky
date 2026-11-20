@@ -1,6 +1,6 @@
 // Production server: serves the built client (dist/) and hosts online rooms over Socket.IO.
 // The server is authoritative: clients only send actions, the GameSession validates and broadcasts results.
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { extname, resolve, sep } from 'node:path';
@@ -15,7 +15,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const DIST = resolve(import.meta.dirname, '../../dist');
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.woff2': 'font/woff2',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.woff2': 'font/woff2',
   '.glb': 'model/gltf-binary', '.md': 'text/markdown; charset=utf-8',
 };
 
@@ -35,10 +35,14 @@ const http = createServer(async (req, res) => {
       return void res.writeHead(404).end('Client not built. Run: npm run build');
     }
   }
-  const immutable = file.includes(`${sep}assets${sep}`);
+  const immutable = file.includes(`${sep}assets${sep}`); // Vite hashes these names
+  // the rest (models, art, index.html) keep their names: revalidate, and answer 304 when unchanged since the deploy
+  const modified = (await stat(file)).mtime.toUTCString();
+  if (!immutable && req.headers['if-modified-since'] === modified) return void res.writeHead(304).end();
   res.writeHead(200, {
     'content-type': MIME[extname(file)] ?? 'application/octet-stream',
     'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'last-modified': modified,
   });
   res.end(body);
 });

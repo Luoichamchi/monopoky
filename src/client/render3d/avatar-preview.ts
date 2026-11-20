@@ -9,6 +9,11 @@ export const avatarUrl = (id: string) => `${import.meta.env.BASE_URL}models/avat
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map<string, Promise<GLTF>>();
+/** One download per avatar, shared by the menu preview and the 3D board. A failed load is retried next time. */
+export function loadAvatar(id: string) {
+  if (!cache.has(id)) cache.set(id, loader.loadAsync(avatarUrl(id)).catch(e => (cache.delete(id), Promise.reject(e))));
+  return cache.get(id)!;
+}
 
 export class AvatarPreview {
   private renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -42,8 +47,7 @@ export class AvatarPreview {
 
   async show(id: string) {
     this.wanted = id;
-    if (!cache.has(id)) cache.set(id, loader.loadAsync(avatarUrl(id)));
-    const gltf = await cache.get(id)!;
+    const gltf = await loadAvatar(id);
     if (this.wanted !== id) return; // the player clicked on: a newer pick wins
     if (this.model) this.scene.remove(this.model);
     this.model = gltf.scene.clone();

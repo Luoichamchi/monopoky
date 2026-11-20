@@ -15,8 +15,8 @@ import { INK, disposeRenderer, noOutline, toon } from './toon.ts';
 import { mergeStatic } from './merge.ts';
 import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
 import { TILE_SKIN } from '../render/skins.ts';
-import { AVATARS } from '../../protocol.ts';
-import { avatarUrl } from './avatar-preview.ts';
+import { AVATARS, isAvatar } from '../../protocol.ts';
+import { loadAvatar } from './avatar-preview.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 
 // ---------- assets ----------
@@ -25,15 +25,13 @@ const ATLAS_URL = `${import.meta.env.BASE_URL}models/atlas-board.glb`; // built 
 let atlasAsset: GLTF | undefined;
 const PIECE_URL = `${import.meta.env.BASE_URL}models/horse-piece.glb`; // built by tools/blender/horse_piece.py
 let pieceAsset: GLTF | undefined;
-let avatarAssets: Map<string, GLTF> | undefined; // id → model (protocol.ts AVATARS, made by tools/blender/avatar_lowpoly.py)
 const AVATAR_SCALE = 1.5; // avatar height ÷ height of the peak it stands on
 
 export async function preload() {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // models are packed by `npm run models`
-  [atlasAsset, pieceAsset, avatarAssets] = await Promise.all([
+  [atlasAsset, pieceAsset] = await Promise.all([ // avatars: only the seated ones, see placeAvatar
     atlasAsset ?? loader.loadAsync(ATLAS_URL),
     pieceAsset ?? loader.loadAsync(PIECE_URL),
-    avatarAssets ?? Promise.all(AVATARS.map(async a => [a.id, await loader.loadAsync(avatarUrl(a.id))] as const)).then(e => new Map(e)),
   ]);
   await document.fonts?.load('800 64px "Baloo 2"').catch(() => undefined); // labels are drawn on canvases
 }
@@ -143,6 +141,7 @@ export class Board3D implements BoardRenderer {
   private stables: GlowMaterial[][] = []; // per seat: what pulses when it is that seat's turn
   private dust?: SpiritDust;
   private tops: (THREE.Vector3 | undefined)[] = []; // per seat: top of its avatar's head (camera fit)
+  private gen = 0; // bumped by build()/destroy(): an avatar that loads after that is dropped
   private merged: THREE.BufferGeometry[] = []; // atlas meshes merged per material (disposed on rebuild)
   private flag?: { geo: THREE.BufferGeometry; pos: THREE.BufferAttribute; rest: Float32Array; left: number; width: number; s: number; o: THREE.Vector3 };
   private wave = 0; // flag wave phase
@@ -215,6 +214,7 @@ export class Board3D implements BoardRenderer {
 
   build(s: GameState) {
     this.s = s;
+    this.gen++;
     this.world.clear();
     this.cells.clear();
     this.flag = undefined;
@@ -299,6 +299,7 @@ export class Board3D implements BoardRenderer {
   }
 
   destroy() {
+    this.gen++;
     this.ro.disconnect();
     this.controls.dispose();
     disposeRenderer(this.renderer, this.scene);
@@ -590,9 +591,16 @@ export class Board3D implements BoardRenderer {
 
   /** The seat's avatar on its highest peak, AVATAR_SCALE × as tall as that peak, facing the centre. Glows with the stable on its turn. */
   private placeAvatar(seat: number, avatar: string | undefined, peak: { top: THREE.Vector3; height: number }, glow: GlowMaterial[]) {
-    const model = (avatarAssets!.get(avatar!) ?? avatarAssets!.get(AVATARS[seat].id)!).scene.clone(); // no avatar: older game
-    const box = new THREE.Box3().setFromObject(model);
     const tall = peak.height * AVATAR_SCALE;
+    this.tops[seat] = peak.top.clone().setY(peak.top.y + tall); // known before the model arrives: fit() does not wait for it
+    const gen = this.gen;
+    loadAvatar(isAvatar(avatar) ? avatar : AVATARS[seat].id) // no avatar: older game
+      .then(gltf => gen === this.gen && this.addAvatar(seat, gltf.scene.clone(), peak, tall, glow))
+      .catch(e => console.warn('avatar unavailable', e)); // the game goes on without it
+  }
+
+  private addAvatar(seat: number, model: THREE.Object3D, peak: { top: THREE.Vector3 }, tall: number, glow: GlowMaterial[]) {
+    const box = new THREE.Box3().setFromObject(model);
     const k = tall / (box.max.y - box.min.y);
     model.scale.multiplyScalar(k);
     model.position.set(peak.top.x, peak.top.y - box.min.y * k, peak.top.z);
@@ -606,7 +614,6 @@ export class Board3D implements BoardRenderer {
       m.material = mat;
     });
     this.world.add(model);
-    this.tops[seat] = peak.top.clone().setY(peak.top.y + tall);
   }
 
   /** Tinh bàn chess piece: pedestal + floating spirit head (two glTF nodes), mane and pedestal in the seat color. */

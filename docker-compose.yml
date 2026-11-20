@@ -2,5 +2,16 @@ services:
   co-ca-ngua:
     build: .
     restart: unless-stopped
+    init: true # forwards `docker stop` to node instead of waiting 10 s to kill it
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000" # local check only: the public way in is the tunnel below
+
+  # Cloudflare Tunnel: https://chess.tst.io.vn → co-ca-ngua:3000, no open port on the server (README: "Deploy").
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?put CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - co-ca-ngua
