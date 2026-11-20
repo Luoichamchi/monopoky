@@ -11,6 +11,7 @@ export class DiceDriver {
   pose: Pose = restPose();
   ready = false;
   onRoll?: (toss: Toss) => void;
+  onShake?: (on: boolean) => void; // the player started / stopped shaking (sound hook)
   private geometry: () => { table: Table; aim: number };
   private draw: (p: Pose, moving: boolean) => void;
   private fn?: (ms: number) => Pose;
@@ -29,10 +30,12 @@ export class DiceDriver {
       hold: () => {
         const base = this.pose.q;
         this.run(ms => shakePose(ms / 1000, chargeOf(ms), base)); // keeps rattling until the throw comes back
+        this.onShake?.(true);
       },
-      cancel: () => this.goHome(),
+      cancel: () => (this.onShake?.(false), this.goHome()),
       toss: t => {
         this.ready = false;
+        this.onShake?.(false);
         this.onRoll?.(t);
       },
     });

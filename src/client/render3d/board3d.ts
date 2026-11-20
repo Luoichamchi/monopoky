@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { GATE, HOME, STABLE, absOf, seatOf } from '../../core/board.ts';
 import type { GameEvent, GameState } from '../../core/types.ts';
@@ -12,6 +13,7 @@ import { animate, burst, done, explosion, iconPop, impact, sfxText, shake, svg, 
 import { CELL, CORNERS, HOME_CELLS, TRACK_CELLS, center, horseXY } from '../render/layout.ts';
 import type { BoardRenderer } from '../render/renderer.ts';
 import { GRADIENT, INK, disposeRenderer, noOutline, toon } from './toon.ts';
+import { mergeStatic } from './merge.ts';
 import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
 import { TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
@@ -27,10 +29,11 @@ const PIECE_URL = `${import.meta.env.BASE_URL}models/horse-piece.glb`; // built 
 let pieceAsset: GLTF | undefined;
 
 export async function preload(theme: BoardTheme) {
-  horseAsset ??= await new GLTFLoader().loadAsync(HORSE_URL);
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // models are packed by `npm run models`
+  horseAsset ??= await loader.loadAsync(HORSE_URL);
   if (theme === 'atlas') {
-    atlasAsset ??= await new GLTFLoader().loadAsync(ATLAS_URL);
-    pieceAsset ??= await new GLTFLoader().loadAsync(PIECE_URL);
+    atlasAsset ??= await loader.loadAsync(ATLAS_URL);
+    pieceAsset ??= await loader.loadAsync(PIECE_URL);
   }
   await document.fonts?.load('800 64px "Baloo 2"').catch(() => undefined); // labels are drawn on canvases
 }
@@ -110,6 +113,7 @@ interface Horse3D {
 
 interface SpiritParts {
   head: THREE.Object3D; // horse_spirit node: floats above the pedestal
+  headY: number; // its resting height (compressed models keep an offset on the node)
   smoke: Smoke;
   phase: number; // desyncs the bobbing between pieces
   power: number; // smoothed smoke strength (thicker while pickable)
@@ -143,7 +147,8 @@ export class Board3D implements BoardRenderer {
   private star?: THREE.Object3D;
   private starY = 1.2; // bobbing centre of the spinning centrepiece
   private dust?: SpiritDust;
-  private flag?: { geo: THREE.BufferGeometry; pos: THREE.BufferAttribute; rest: Float32Array; width: number };
+  private merged: THREE.BufferGeometry[] = []; // atlas meshes merged per material (disposed on rebuild)
+  private flag?: { geo: THREE.BufferGeometry; pos: THREE.BufferAttribute; rest: Float32Array; left: number; width: number; s: number; o: THREE.Vector3 };
   private wave = 0; // flag wave phase
   private gust = 0; // 1 right after a dice roll, fades back to a breeze
   private marker: THREE.Mesh;
@@ -326,14 +331,14 @@ export class Board3D implements BoardRenderer {
 
   /** Atlas centre flag: a travelling wave pinned at the pole, stronger for a moment after each roll. */
   private waveFlag(dt: number) {
-    const { geo, pos, rest, width } = this.flag!;
+    const { geo, pos, rest, left, width, s, o } = this.flag!;
     this.gust = Math.max(0, this.gust - dt * 0.7);
     const amp = 0.09 * (1 + 1.6 * this.gust);
     this.wave += dt * 4.2 * (1 + 0.8 * this.gust); // integrate the speed so a gust never makes the wave jump
     for (let i = 0; i < pos.count; i++) {
-      const x = rest[i * 3], y = rest[i * 3 + 1];
-      const k = x / width; // 0 at the pole → 1 at the free edge
-      pos.setZ(i, amp * k * Math.sin(x * 3.2 - this.wave + y * 0.8));
+      const x = rest[i * 3], y = rest[i * 3 + 1], z = rest[i * 3 + 2];
+      const k = (x - left) / width; // 0 at the pole → 1 at the free edge
+      pos.setZ(i, (z + amp * k * Math.sin(x * 3.2 - this.wave + y * 0.8) - o.z) / s); // back to the node's (packed) units
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
@@ -354,7 +359,7 @@ export class Board3D implements BoardRenderer {
       sp.smoke.material.uniforms.uPower.value = sp.power;
       sp.smoke.group.rotation.y += dt * (0.6 + sp.power);
       const amp = picked ? 0.05 : 0.03;
-      sp.head.position.y = 0.03 + amp + Math.sin(t * 1.6 + sp.phase) * amp; // never dips into the pedestal
+      sp.head.position.y = sp.headY + 0.03 + amp + Math.sin(t * 1.6 + sp.phase) * amp; // never dips into the pedestal
       sp.head.rotation.z = Math.sin(t * 1.1 + sp.phase) * 0.04;
       sp.head.rotation.x = Math.sin(t * 0.9 + sp.phase * 1.3) * 0.03;
     });
@@ -474,7 +479,12 @@ export class Board3D implements BoardRenderer {
     this.cells.forEach((m, abs) => {
       const col = occ.get(abs);
       (m.material as GlowMaterial).color.set(col ?? m.userData.base);
-      m.scale.y = col ? m.userData.lift : 1;
+      // lift relative to the cell's own size and keep its bottom in place (compressed models put a scale + offset on the node)
+      const u = m.userData;
+      if (u.sy === undefined) Object.assign(u, { sy: m.scale.y, py: m.position.y, bottom: (m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!)).min.y });
+      const k = col ? u.lift : 1;
+      m.scale.y = u.sy * k;
+      m.position.y = u.py + u.bottom * u.sy * (1 - k);
     });
   }
 
@@ -521,14 +531,22 @@ export class Board3D implements BoardRenderer {
       }
       return -1;
     };
+    board.traverse(o => Object.assign(o.userData, { seat: owner(o), cast: /mountains|foothills|hub_/.test(o.name) }));
+    // ~700 meshes → one per material and seat. Kept apart: whatever the game changes on its own (see CLAUDE.md).
+    const KEEP = /^(cell_\d+|stable_\d_(floor|glow|rim)|hub_flag)$/;
+    this.merged.forEach(g => g.dispose());
+    this.merged = mergeStatic(board, m => {
+      const mat = m.material as GlowMaterial;
+      return KEEP.test(m.name) || mat.transparent || mat.map ? null : `${mat.uuid}|${m.userData.seat}|${m.userData.cast}`;
+    });
     const stables: GlowMaterial[][] = [[], [], [], []];
     board.traverse(o => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       m.receiveShadow = true;
-      m.castShadow = /mountains|foothills|hub_/.test(m.name);
+      m.castShadow = m.userData.cast;
       const mat = noOutline((m.material as GlowMaterial).clone()); // own copy: cells and seats are recoloured
-      const seat = owner(m);
+      const seat: number = m.userData.seat;
       if (seat >= 0 && !used.has(seat)) mat.color.lerp(new THREE.Color('#1b2130'), 0.55);
       if (/^stable_\d_(floor|glow|rim)$/.test(m.name))
         stables[seat].push(Object.assign(mat, { emissive: new THREE.Color(seatColor(seat).main), emissiveIntensity: 0 }));
@@ -545,8 +563,13 @@ export class Board3D implements BoardRenderer {
     if (cloth) {
       cloth.geometry = cloth.geometry.clone(); // the wave edits vertices: keep the cached asset flat
       const geo = cloth.geometry, pos = geo.getAttribute('position') as THREE.BufferAttribute;
-      geo.computeBoundingBox();
-      this.flag = { geo, pos, rest: (pos.array as Float32Array).slice(), width: geo.boundingBox!.max.x };
+      // compressed models store vertices in a unit box and put a uniform scale + offset on the node: work in Blender units
+      const s = cloth.scale.x, o = cloth.position.clone();
+      const rest = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) rest.set([pos.getX(i) * s + o.x, pos.getY(i) * s + o.y, pos.getZ(i) * s + o.z], i * 3);
+      const xs = rest.filter((_, i) => i % 3 === 0);
+      const left = Math.min(...xs);
+      this.flag = { geo, pos, rest, left, width: Math.max(...xs) - left, s, o };
     }
   }
 
@@ -654,8 +677,9 @@ export class Board3D implements BoardRenderer {
     model.scale.setScalar(k);
     const smoke = smokeRibbons(col.main, Math.random() * 10);
     model.add(smoke.group);
+    const head = model.getObjectByName('horse_spirit')!;
     const spirit: SpiritParts = {
-      head: model.getObjectByName('horse_spirit')!, smoke, phase: Math.random() * Math.PI * 2,
+      head, headY: head.position.y, smoke, phase: Math.random() * Math.PI * 2,
       power: 0.6, pedestal: size.y * k, last: new THREE.Vector3(),
     };
     return { model, spirit };

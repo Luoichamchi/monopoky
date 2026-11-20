@@ -19,3 +19,8 @@ Luật chơi chỉ nằm ở một chỗ. Phần hiển thị (ngựa, hiệu �
 - Một hiệu ứng mới phải có mặt ở mọi renderer: `render/board-view.ts`, `render/classic-board.ts`, `render3d/board3d.ts`.
 - Chuyển động xúc xắc (giữ để lắc, quăng, lăn chậm dần) nằm ở `src/client/dice/` và dùng chung cho mọi skin xúc xắc (`render/dice.ts`, `render3d/dice3d.ts`). Skin chỉ vẽ `Pose`. Mặt xúc xắc vẫn do engine quyết định; cú quăng (`Toss`) chỉ đi kèm action/event để mọi máy phát lại giống nhau.
 - `session.ts` được phép biết thời lượng hoạt ảnh (`TIMING`, `animMs`), vì server cần chờ client diễn xong mới cho bot đi tiếp. Không đưa thêm thứ gì khác về đồ hoạ vào đây.
+
+### 2. Model 3D làm trong Blender
+
+- Xuất `.glb` vào `public/models/` rồi chạy `npm run models` (nén meshopt). Code không được giả định toạ độ đỉnh là số thực hay node có transform gốc: đặt vị trí/kích thước node **tương đối** so với giá trị lúc nạp, đọc đỉnh bằng `getX/getY/getZ`.
+- Bàn Tinh bàn Thiên Mã được gộp mesh lúc nạp (`render3d/merge.ts`): mesh cùng vật liệu và cùng ghế thành một lần vẽ. Những object game thay đổi riêng phải giữ tên đúng để không bị gộp: `cell_<ô>`, `stable_<ghế>_floor|glow|rim`, `hub_flag`; cha `stable_<ghế>` / `lane_<ghế>` quyết định ghế của mesh. Muốn làm động một chi tiết mới thì thêm tên của nó vào `KEEP` trong `drawAtlas`.

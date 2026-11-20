@@ -104,6 +104,10 @@ export class DiceView3D implements DiceRenderer {
     this.driver.onRoll = fn;
   }
 
+  set onShake(fn: ((on: boolean) => void) | undefined) {
+    this.driver.onShake = fn;
+  }
+
   private get unitPx() {
     return (this.el.clientWidth || 120) * UNIT;
   }

@@ -2,7 +2,7 @@
 import { chooseAction } from './ai/bots.ts';
 import { cloneState } from './core/board.ts';
 import { createGame, isLegal, step } from './core/engine.ts';
-import type { Action, GameEvent, GameState, PlayerConfig, Rng } from './core/types.ts';
+import type { Action, BotLevel, GameEvent, GameState, PlayerConfig, Rng } from './core/types.ts';
 
 export interface Update {
   state: GameState;
@@ -43,15 +43,21 @@ export function sanitizeAction(a: unknown): Action | null {
   return null;
 }
 
+/** How a bot picks its move. Default: right here. The server passes one that runs slow levels on worker threads. */
+export type Think = (s: GameState, level: BotLevel) => Action | Promise<Action>;
+
 export class GameSession {
   state: GameState;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private onUpdate: (u: Update) => void;
   private rng: Rng;
+  private think: Think;
+  private epoch = 0; // bumps on every reschedule/stop, so a bot answer that arrives late is dropped
 
-  constructor(variant: string, players: PlayerConfig[], onUpdate: (u: Update) => void, rng: Rng = Math.random) {
+  constructor(variant: string, players: PlayerConfig[], onUpdate: (u: Update) => void, rng: Rng = Math.random, think?: Think) {
     this.onUpdate = onUpdate;
     this.rng = rng;
+    this.think = think ?? ((s, level) => chooseAction(s, level, { rng: this.rng }));
     this.state = createGame(variant, players, rng);
   }
 
@@ -80,17 +86,24 @@ export class GameSession {
 
   stop() {
     clearTimeout(this.timer);
+    this.epoch++;
   }
 
   private scheduleBot(events: GameEvent[]) {
     clearTimeout(this.timer);
+    const epoch = ++this.epoch;
     const s = this.state;
     const level = s.players[s.turn]?.bot;
     if (s.phase === 'over' || !level) return;
     const turn = s.turn;
-    this.timer = setTimeout(() => {
-      // ponytail: expert search blocks the event loop ~0.5s; move bots to a worker if one server hosts many rooms
-      this.act(turn, chooseAction(cloneState(s), level, { rng: this.rng }));
+    this.timer = setTimeout(async () => {
+      let a: Action;
+      try {
+        a = await this.think(cloneState(s), level);
+      } catch {
+        a = chooseAction(cloneState(s), level, { rng: this.rng }); // worker failed: think here rather than stall the game
+      }
+      if (epoch === this.epoch) this.act(turn, a);
     }, animMs(events) + 400);
   }
 }

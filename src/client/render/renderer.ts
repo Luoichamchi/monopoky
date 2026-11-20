@@ -20,6 +20,7 @@ export interface BoardRenderer {
 /** Dice skins draw the shared motion in dice/motion.ts and use dice/input.ts for hold-and-throw. */
 export interface DiceRenderer {
   onRoll?: (toss: Toss) => void; // set by the screen: the player let go of the die
+  onShake?: (on: boolean) => void; // set by the screen: the player is holding / shaking the die (sound)
   roll(value: number, color: string, toss: Toss): Promise<void>; // the value is decided by the rules, this only replays the throw
   setReady(on: boolean, color: string): void; // waiting for the player to grab the die
   destroy(): void;

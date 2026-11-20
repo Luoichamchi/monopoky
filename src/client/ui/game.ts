@@ -14,6 +14,7 @@ import { look, saveLook, themeSelect, type Look } from '../look.ts';
 import { BOARD_THEMES, isBoardTheme } from '../render/board-themes.ts';
 import { loadBoard, loadDice, type BoardRenderer, type DiceRenderer, type TemplateKind } from '../render/renderer.ts';
 import { confetti, cutIn } from '../render/fx.ts';
+import { chargeOf } from '../dice/motion.ts';
 import { CARD_SKIN, TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 import { esc } from './dom.ts';
@@ -44,6 +45,7 @@ export class GameScreen {
   private waiting = false; // an action was sent, wait for the answer
   private aiming?: string; // card being targeted
   private autoMove?: ReturnType<typeof setTimeout>;
+  private shaking?: ReturnType<typeof setTimeout>;
   private conn: Conn;
   private keyHandler = (e: KeyboardEvent) => {
     if (e.code === 'Escape' && this.aiming) (this.aiming = undefined), this.refreshInput();
@@ -99,6 +101,7 @@ export class GameScreen {
 
   destroy() {
     clearTimeout(this.autoMove);
+    this.shakeSound(false);
     removeEventListener('keydown', this.keyHandler);
     music.play(false);
     this.tasks = [];
@@ -198,12 +201,26 @@ export class GameScreen {
       }
     }
     if (makeDice) {
+      this.shakeSound(false);
       this.dice?.destroy();
       this.dice = makeDice(this.el.querySelector('.dice-slot')!, () => this.diceArena());
       this.dice.onRoll = toss => this.send({ type: 'roll', toss });
+      this.dice.onShake = on => this.shakeSound(on);
     }
     this.shown = { ...l };
     this.say(before);
+  }
+
+  /** Rattle while the die is held: faster the longer it is shaken (same charge curve as the throw). */
+  private shakeSound(on: boolean) {
+    clearTimeout(this.shaking);
+    if (!on) return;
+    const t0 = performance.now();
+    const tick = () => {
+      sfx.play('shake');
+      this.shaking = setTimeout(tick, 150 - 85 * chargeOf(performance.now() - t0));
+    };
+    tick();
   }
 
   /** Where a thrown die may roll: the board. A full-table board is a square in the middle of the table. */

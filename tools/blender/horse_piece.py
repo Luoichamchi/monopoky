@@ -170,7 +170,7 @@ def hit(origin, direction):
 # ---------------- ears, eyes, nostrils ----------------
 for sx in (1, -1):
     bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=0.06, radius2=0.004, depth=0.22)
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=10, radius1=0.06, radius2=0.004, depth=0.22)
     for v in bm.verts:
         t = (v.co.z + 0.11) / 0.22
         v.co.y -= 0.04 * t * t
@@ -184,7 +184,7 @@ for sx in (1, -1):
 
 def ellipsoid(name, loc, scale, m, rot):
     bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=10, radius=1)
+    bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=6, radius=1)  # ~3 px on the board
     o = new_obj(name, bm, m)
     o.location, o.scale, o.rotation_euler = loc, scale, rot
     return o
@@ -223,8 +223,8 @@ d = V(0, -0.43, -0.30).normalized()
 a = V(1, 0, 0)
 b = d.cross(a).normalized()
 nose = []
-for k in range(40):
-    t = 2 * math.pi * k / 40
+for k in range(24):
+    t = 2 * math.pi * k / 24
     rr = a * math.cos(t) + b * math.sin(t)
     l, n = hit(V(0, -0.45, 0.80) + rr * 0.25, -rr)
     if l:
@@ -232,7 +232,7 @@ for k in range(40):
 curve_obj("hp_strap_nose", nose, M["gold"], 0.016, cyclic=True)
 
 
-def arc(c, normal, reach=0.45, n=25):
+def arc(c, normal, reach=0.45, n=15):
     c = Vector(c)
     dn = Vector(normal).normalized()
     up = dn.cross(a).normalized()
@@ -318,7 +318,7 @@ for sx in (1, -1):
             place(f"hp_sun_{sx}", star_bm(R=1.0, r=0.55, pts=8, th=0.12), l, n, 0.05)
         else:
             bm = bmesh.new()
-            bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=6, radius=0.012)
+            bmesh.ops.create_uvsphere(bm, u_segments=6, v_segments=4, radius=0.012)  # ~1 px on the board
             new_obj(f"hp_dot_{sx}_{j}", bm, M["gold"]).location = l
     for p, q in [(0, 1), (1, 2), (2, 3), (0, 4), (0, 5)]:
         seg = []
@@ -335,12 +335,12 @@ prof = [(0.0, 0.0), (0.40, 0.0), (0.425, 0.018), (0.425, 0.052), (0.405, 0.07), 
 bm = bmesh.new()
 vs = [bm.verts.new((rr * S, 0, z)) for rr, z in prof]
 es = [bm.edges.new((vs[k], vs[k + 1])) for k in range(len(vs) - 1)]
-bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), angle=2 * math.pi, steps=64, use_duplicate=False)
+bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), angle=2 * math.pi, steps=40, use_duplicate=False)
 bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
 new_obj("hp_base", bm, M["base"])
 
 
-def torus(name, R, rr, z, seg=64, ring=10):
+def torus(name, R, rr, z, seg=40, ring=5):  # a 1-2 px tube in game
     bm = bmesh.new()
     rows = [[bm.verts.new(((R + rr * math.cos(bb)) * math.cos(aa), (R + rr * math.cos(bb)) * math.sin(aa), z + rr * math.sin(bb)))
              for bb in (2 * math.pi * j / ring for j in range(ring))] for aa in (2 * math.pi * i / seg for i in range(seg))]
@@ -376,11 +376,13 @@ sc.view_settings.view_transform = "AgX"
 
 # ---------------- game mesh: join everything, decimate ----------------
 src = sorted([o for o in coll.objects if o.type in ("MESH", "CURVE")], key=lambda o: o.name)
-body.modifiers.new("dec", "DECIMATE").ratio = 0.08   # only the dense remeshed body; thin wisps would collapse
+# Budget: the piece is ~60-100 px tall on the board, drawn 16 times and again for the ink outline.
+body.modifiers.new("dec", "DECIMATE").ratio = 0.035   # only the dense remeshed body; thin wisps would collapse
 for o in src:
     if o.type == "CURVE":
-        o.data.bevel_resolution = 1
-        o.data.resolution_u = min(o.data.resolution_u, 6)
+        thin = o.data.bevel_depth < 0.006               # constellation lines: under a pixel wide in game
+        o.data.bevel_resolution = 0 if thin else 1
+        o.data.resolution_u = min(o.data.resolution_u, 2 if thin else 3)
 bpy.context.view_layer.update()
 dg = bpy.context.evaluated_depsgraph_get()
 mats = list(M.values())

@@ -25,6 +25,7 @@ Chỉ chơi offline với bot thì chỉ cần `npm install && npm run dev`.
 npm test             # test luật chơi
 npm run typecheck
 npm run bench        # bot tự đấu: node test/bench.ts [classic|party] [số ván] [ms suy nghĩ của bot Siêu cấp]
+npm run models       # nén model .glb vừa xuất từ Blender (meshopt); file đã nén thì bỏ qua
 ```
 
 ## Deploy lên server riêng
@@ -91,7 +92,7 @@ src/
 
 **Template đồ hoạ:** bản đồ và xúc xắc là 2 phần độc lập, ghép tùy ý (2D/3D × 2D/3D). Ở menu, nút "2D | 3D" đặt nhanh cả hai. Trong ván, bấm 🎨 để đổi riêng từng phần ngay lúc đang chơi: lệnh đổi được xếp hàng sau hoạt ảnh đang chạy, bản cũ được giải phóng hoàn toàn (kể cả WebGL context), bản mới vẽ lại từ trạng thái ván. Lựa chọn lưu trong trình duyệt (`ccn.look`) và chỉ ảnh hưởng người chơi đó, kể cả khi chơi online. Muốn thêm template mới (ví dụ PixiJS) thì implement `BoardRenderer` hoặc `DiceRenderer` trong `render/renderer.ts` và thêm vào `loadBoard`/`loadDice`. Máy không chạy được WebGL thì tự quay về 2D.
 
-**Asset 3D** nằm trong `public/models/` (credit và giấy phép ở `public/models/LICENSE.md`). Ngựa: *Horse* của Quaternius, CC0. Muốn đổi model khác thì thay `horse.glb`; code tô màu theo tên vật liệu (`Material.003` là thân) và tìm hoạt ảnh theo đuôi tên `Idle`, `Run`, `Death`.
+**Asset 3D** nằm trong `public/models/` (credit và giấy phép ở `public/models/LICENSE.md`). Sau mỗi lần xuất lại một file `.glb` từ Blender, chạy `npm run models` để nén nó (khoảng 3–6 lần nhỏ hơn, hình không đổi). Ngựa: *Horse* của Quaternius, CC0. Muốn đổi model khác thì thay `horse.glb`; code tô màu theo tên vật liệu (`Material.003` là thân) và tìm hoạt ảnh theo đuôi tên `Idle`, `Run`, `Death`.
 
 **Nâng cấp đồ hoạ:** đổi màu/phong cách trong `theme.ts` và `style.css`; thay quân ngựa trong `BoardView.drawHorse()` (ví dụ dùng `<image>` sprite chibi); thêm hiệu ứng vào `fx.ts`. Nếu hoạt ảnh dài/ngắn hơn đáng kể thì chỉnh `TIMING` trong `session.ts` để bot chờ đúng nhịp.
 

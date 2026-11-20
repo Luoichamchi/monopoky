@@ -8,6 +8,7 @@ import { Server, type Socket } from 'socket.io';
 import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
 import { GameSession, type Update } from '../session.ts';
+import { think } from './bots.ts';
 import { BOT_NAMES, type RoomView, type SeatKind } from '../protocol.ts';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -100,10 +101,16 @@ function startGame(r: Room) {
     return players.length - 1;
   });
   if (players.length < 2) return false;
-  r.session = new GameSession(r.variant, players, u => {
-    r.last = u;
-    io.to(r.id).emit('update', u);
-  });
+  r.session = new GameSession(
+    r.variant,
+    players,
+    u => {
+      r.last = u;
+      io.to(r.id).emit('update', u);
+    },
+    Math.random,
+    think, // expert bots search on worker threads
+  );
   r.session.start();
   return true;
 }

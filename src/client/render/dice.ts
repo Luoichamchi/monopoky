@@ -33,6 +33,10 @@ export class DiceView implements DiceRenderer {
     this.driver.onRoll = fn;
   }
 
+  set onShake(fn: ((on: boolean) => void) | undefined) {
+    this.driver.onShake = fn;
+  }
+
   show(v: number) {
     if (this.el.dataset.value === String(v)) return;
     this.pips.forEach((p, i) => p.classList.toggle('on', FACES[v]?.includes(i) ?? false));

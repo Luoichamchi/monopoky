@@ -3,7 +3,7 @@ import { save, store } from '../ui/dom.ts';
 import { bus, midi, noise, tone, type NoiseOpts, type ToneOpts } from './engine.ts';
 
 export type Sfx =
-  | 'click' | 'roll' | 'land' | 'hop' | 'exit' | 'kick' | 'pass' | 'turn' | 'win' | 'card' | 'gain'
+  | 'click' | 'shake' | 'roll' | 'land' | 'hop' | 'exit' | 'kick' | 'pass' | 'turn' | 'win' | 'card' | 'gain'
   // special tiles (same names as the tile kinds in core/variants/party/tiles.ts)
   | 'boost' | 'trap' | 'portal' | 'gift' | 'shield' | 'ice' | 'bomb';
 
@@ -20,6 +20,9 @@ const arp = (notes: number[], gap: number, o: ToneOpts, dur = 0.18) =>
 const RECIPES: Record<Sfx, () => void> = {
   // ---- moves & game flow ----
   click: () => T(1100, 0.05, { type: 'triangle', vol: 0.1 }),
+  shake: () => { // dice knocking together in a closed hand: two quick clicks, a bit muffled
+    for (let i = 0; i < 2; i++) N(0.025, { at: i * 0.03 + Math.random() * 0.012, freq: 1400 + Math.random() * 1600, q: 5, vol: 0.28 });
+  },
   roll: () => {
     for (let i = 0; i < 8; i++) N(0.035, { at: i * 0.065 + Math.random() * 0.02, freq: 1800 + Math.random() * 1800, q: 4, vol: 0.35 });
   },
