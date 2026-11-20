@@ -5,6 +5,7 @@ import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
 import { BOT_LABEL, BOT_NAMES, type RoomView, type SeatKind } from '../protocol.ts';
 import { GameSession, type Update } from '../session.ts';
+import { think } from './bots.ts';
 import { ask, connect } from './net.ts';
 import { seatColor } from './render/theme.ts';
 import { unlock } from './audio/engine.ts';
@@ -136,7 +137,7 @@ function offline() {
       leave: () => menu(),
       restart: () => offline(),
     });
-    session = new GameSession(prefs.variant, players, u => view.update(u));
+    session = new GameSession(prefs.variant, players, u => view.update(u), Math.random, think);
     session.start();
     return () => (session.stop(), view.destroy());
   });
