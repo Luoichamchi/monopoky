@@ -9,8 +9,9 @@ export interface Look {
 }
 
 const stored = store<Partial<Look>>('ccn.look', {});
+const touch = matchMedia('(pointer: coarse)').matches; // phones and tablets
 export const look: Look = {
-  board: stored.board === '2d' ? '2d' : '3d',
+  board: stored.board === '2d' || stored.board === '3d' ? stored.board : touch ? '2d' : '3d', // until the player picks one: 2D is lighter on mobile
   dice: '3d', // 2D dice hidden for now (still used when WebGL is missing)
   follow: stored.follow === true, // locked by default
 };
