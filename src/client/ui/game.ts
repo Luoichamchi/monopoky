@@ -59,6 +59,7 @@ export class GameScreen {
         <button class="btn ghost icon" data-leave title="Về menu" aria-label="Về menu">${icon('back')}</button>
         <div class="arena-brand arena-only">${icon('star')} Thiên Mã</div>
         <div class="status" aria-live="polite"></div>
+        <button class="btn ghost icon" data-follow hidden></button>
         <button class="btn ghost icon" data-settings title="Cài đặt" aria-label="Cài đặt">${icon('gear')}</button>
         <button class="btn ghost icon" data-help title="Luật chơi" aria-label="Luật chơi">${icon('help')}</button>
       </header>
@@ -97,6 +98,11 @@ export class GameScreen {
     this.el.querySelector<HTMLButtonElement>('[data-leave]')!.onclick = () => conn.leave();
     this.el.querySelector<HTMLButtonElement>('[data-help]')!.onclick = () => this.showHelp();
     this.el.querySelector<HTMLButtonElement>('[data-settings]')!.onclick = () => this.showSettings();
+    this.el.querySelector<HTMLButtonElement>('[data-follow]')!.onclick = () => {
+      look.follow = !look.follow;
+      saveLook();
+      this.showFollow();
+    };
     this.el.querySelector<HTMLButtonElement>('[data-pass]')!.onclick = () => this.send({ type: 'pass' });
     this.el.querySelector<HTMLButtonElement>('[data-roll]')!.onclick = () => this.canRoll && this.send({ type: 'roll' });
     addEventListener('keydown', this.keyHandler);
@@ -146,7 +152,7 @@ export class GameScreen {
 
   private async apply(u: Update) {
     if (!this.s) {
-      this.board.build(u.state);
+      this.build(u.state);
       this.s = u.state;
       this.renderPanels();
       if (u.state.phase !== 'over') this.announce(u.state.turn); // rejoining mid-turn: no 'turn' event comes
@@ -173,12 +179,13 @@ export class GameScreen {
       this.board = makeBoard(this.el.querySelector('.board-slot')!);
       this.board.onHop = () => sfx.play('hop');
       this.el.classList.toggle('full-board', !!this.board.fullTable);
+      this.showFollow();
       const layered = !this.board.fullTable;
       this.el.dataset.theme = layered ? 'atlas' : '3d';
       const anchor = this.el.querySelector(layered ? '.roll-well' : '[data-settings]')!;
       anchor.before(this.status);
       if (this.s) {
-        this.board.build(this.s);
+        this.build(this.s);
         this.board.setTurn(this.s.phase === 'over' ? -1 : seatOf(this.s, this.s.turn));
       }
     }
@@ -191,6 +198,24 @@ export class GameScreen {
     }
     this.shown = { ...l };
     this.say(before);
+  }
+
+  /** Draw a fresh board, seen from this browser's own seat (spectators keep the default view). */
+  private build(s: GameState) {
+    this.board.build(s);
+    const me = s.players.findIndex((p, i) => this.conn.controls(i) && !p.bot);
+    if (me >= 0) this.board.face?.(seatOf(s, me));
+  }
+
+  /** The lock button: shown when the board can turn to the player on turn; locked = the view stays where the player left it. */
+  private showFollow() {
+    const b = this.el.querySelector<HTMLButtonElement>('[data-follow]')!;
+    b.hidden = this.board?.follow === undefined;
+    if (this.board && !b.hidden) this.board.follow = look.follow;
+    const label = look.follow ? 'Khoá góc nhìn (bàn đang tự quay theo lượt)' : 'Mở khoá: bàn tự quay theo lượt';
+    Object.assign(b, { title: label, innerHTML: icon(look.follow ? 'unlock' : 'lock') });
+    b.setAttribute('aria-label', label);
+    b.setAttribute('aria-pressed', String(!look.follow));
   }
 
   /** Rattle while the die is held: faster the longer it is shaken (same charge curve as the throw). */

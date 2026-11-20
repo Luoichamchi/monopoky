@@ -13,6 +13,8 @@ export interface BoardRenderer {
   animate(e: GameEvent): Promise<void>; // move / kick / tile / shield
   cheer(horse: number, icon: string, color: string): Promise<void>;
   setTurn(seat: number): void; // -1 = nobody
+  follow?: boolean; // 3D only: the camera turns to the seat whose turn it is (absent = not supported)
+  face?(seat: number): void; // 3D only: snap the camera to this seat's view (the local player's, at the start)
   destroy(): void; // must free everything (WebGL contexts are limited per page)
 }
 

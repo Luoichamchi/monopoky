@@ -72,7 +72,7 @@ src/
    │  └─ sfx.ts             hiệu ứng: đổ xúc xắc, bước đi, đá, từng ô đặc biệt, thẻ bài: sfx.play(name)
    │                        muốn dùng file thật: giữ nguyên API, chỉ thay phần thân hàm của file tương ứng
    ├─ render3d/             TEMPLATE 3D (three.js, chỉ tải khi người chơi chọn 3D)
-   │  ├─ board3d.ts         BẢN ĐỒ 3D Tinh bàn Thiên Mã: bàn và quân cờ dựng trong Blender, camera tự canh khung + xoay/zoom
+   │  ├─ board3d.ts         BẢN ĐỒ 3D Tinh bàn Thiên Mã: bàn và quân cờ dựng trong Blender, camera tự canh khung + xoay/zoom, mở ván nhìn từ ghế của mình; mở khoá để bàn tự quay về người tới lượt
    │  ├─ dice3d.ts          XÚC XẮC 3D: widget WebGL riêng, tung lộn vòng rồi dừng đúng mặt số
    │  └─ toon.ts            vật liệu toon/viền dùng chung, giải phóng WebGL khi đổi template
    └─ render/               ĐỒ HOẠ: thay/nâng cấp ở đây mà không đụng vào luật

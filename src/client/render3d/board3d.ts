@@ -60,6 +60,12 @@ function peakOf(range?: THREE.Object3D) {
 
 /** World units: 1 cell = 1 unit, board centered on the origin. */
 const W = (px: number) => px / CELL - 7.5;
+const TURN_TILT = 1; // camera angle from straight down when it turns to a player (controls allow up to 1.05)
+/** Camera azimuth that brings `seat`'s stable to the front left, a bit towards the middle (-0.55 rad from straight ahead). */
+const seatView = (seat: number) => {
+  const c = [0, 1, 2, 3].map(i => horseXY(seat, STABLE, i)).reduce((a, b) => [a[0] + b[0], a[1] + b[1]]);
+  return Math.atan2(W(c[0] / 4), W(c[1] / 4)) + 0.55;
+};
 const H = { track: 0.08, lane: 0.22, stable: 0.36 }; // surface heights a horse stands on
 function canvasTexture(size: number, draw: (c: CanvasRenderingContext2D) => void) {
   const cv = document.createElement('canvas');
@@ -71,16 +77,26 @@ function canvasTexture(size: number, draw: (c: CanvasRenderingContext2D) => void
   return t;
 }
 
-function emojiSprite(icon: string, size: number) {
+/** Party tile sticker: a flat round badge (tile colour ring, emoji) lying on the cell top. */
+function tileDecal(kind: string, size: number) {
+  const { icon, color } = TILE_SKIN[kind];
   const map = canvasTexture(128, c => {
-    c.font = '96px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    c.beginPath();
+    c.arc(64, 64, 58, 0, Math.PI * 2);
+    c.fillStyle = '#29333d';
+    c.fill();
+    c.lineWidth = 8;
+    c.strokeStyle = color;
+    c.stroke();
+    c.font = '70px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(icon, 64, 72);
+    c.fillText(icon, 64, 70);
   });
-  const s = new THREE.Sprite(noOutline(new THREE.SpriteMaterial({ map, depthWrite: false })));
-  s.scale.setScalar(size);
-  return s;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), noOutline(toon(0xffffff, { map, transparent: true, opacity: 0.6, alphaTest: 0.1, depthWrite: false })));
+  m.rotation.x = -Math.PI / 2;
+  m.receiveShadow = true;
+  return m;
 }
 
 interface Horse3D {
@@ -125,7 +141,6 @@ export class Board3D implements BoardRenderer {
   private horses: Horse3D[] = [];
   private cells = new Map<number, THREE.Mesh>();
   private stables: GlowMaterial[][] = []; // per seat: what pulses when it is that seat's turn
-  private tileSprites: THREE.Sprite[] = [];
   private dust?: SpiritDust;
   private tops: (THREE.Vector3 | undefined)[] = []; // per seat: top of its avatar's head (camera fit)
   private merged: THREE.BufferGeometry[] = []; // atlas meshes merged per material (disposed on rebuild)
@@ -134,6 +149,8 @@ export class Board3D implements BoardRenderer {
   private gust = 0; // 1 right after a dice roll, fades back to a breeze
   private marker: THREE.Mesh;
   private turnSeat = -1;
+  follow = true; // the camera turns to whoever's turn it is (the player can still orbit freely)
+  private aimAt?: number; // azimuth the camera is turning to
   private pickable = new Set<number>();
   private onPick?: (id: number) => void;
   private preview?: (id: number) => number | null;
@@ -162,6 +179,7 @@ export class Board3D implements BoardRenderer {
       minPolarAngle: 0.05, maxPolarAngle: 1.05, rotateSpeed: 0.6,
     });
     this.controls.target.set(0, 0, 0.6);
+    this.controls.addEventListener('start', () => (this.aimAt = undefined)); // the player grabbed the board: stop turning it
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xcdbdff, 1.7));
     const sun = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -199,7 +217,6 @@ export class Board3D implements BoardRenderer {
     this.s = s;
     this.world.clear();
     this.cells.clear();
-    this.tileSprites = [];
     this.flag = undefined;
     this.tops = [];
     this.drawBoard(s);
@@ -271,7 +288,13 @@ export class Board3D implements BoardRenderer {
     return iconPop(this.fx, ...this.screen(this.horses[horse].root.position, 0.8), icon, color);
   }
 
+  face(seat: number) {
+    this.aimAt = seatView(seat);
+    this.turnView(1); // one full step: no swing
+  }
+
   setTurn(seat: number) {
+    if (this.follow && seat >= 0 && seat !== this.turnSeat) this.aimAt = seatView(seat);
     this.turnSeat = seat;
   }
 
@@ -289,15 +312,32 @@ export class Board3D implements BoardRenderer {
     const dt = this.timer.getDelta();
     const t = this.timer.getElapsed();
     this.animateSpirits(dt, t);
-    this.tileSprites.forEach((sp, i) => (sp.position.y = 0.62 + Math.sin(t * 2.2 + i) * 0.06));
     if (this.flag) this.waveFlag(dt);
     const glow = 0.25 + 0.25 * Math.sin(t * 5);
     this.stables.forEach((mats, seat) => mats.forEach(m => (m.emissiveIntensity = seat === this.turnSeat ? glow : 0)));
     const pulse = 1 + 0.12 * Math.sin(t * 8);
     this.horses.forEach(h => h.ring.visible && h.ring.scale.setScalar(pulse));
     this.marker.rotation.z = t * 2;
+    if (this.aimAt !== undefined) this.turnView(dt);
     this.controls.update();
     this.effect.render(this.scene, this.camera);
+  }
+
+  /** Swing the camera rig (camera and target) around the board centre towards `aimAt`, the short way round,
+   *  tilting down to a low, close view (TURN_TILT) and refitting the distance as it goes. */
+  private turnView(dt: number) {
+    const target = this.controls.target;
+    const d = THREE.MathUtils.euclideanModulo(this.aimAt! - this.controls.getAzimuthalAngle() + Math.PI, Math.PI * 2) - Math.PI;
+    const tilt = TURN_TILT - this.controls.getPolarAngle();
+    const still = Math.max(Math.abs(d), Math.abs(tilt)) < 0.002 || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const k = still ? 1 : Math.min(1, dt * 3.5);
+    if (still) this.aimAt = undefined;
+    this.camera.position.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * k);
+    target.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * k);
+    const sp = new THREE.Spherical().setFromVector3(this.camera.position.clone().sub(target));
+    sp.phi += tilt * k;
+    this.camera.position.setFromSpherical(sp).add(target);
+    this.fit();
   }
 
   /** Atlas centre flag: a travelling wave pinned at the pole, stronger for a moment after each roll. */
@@ -476,14 +516,15 @@ export class Board3D implements BoardRenderer {
 
     this.drawAtlas(used);
 
-    // party tiles: colored disc + floating emoji
+    // party tiles: a sticker on the cell top
+    this.world.updateMatrixWorld(true);
     for (const [abs, kind] of Object.entries(s.tiles)) {
       const [c, r] = TRACK_CELLS[+abs];
-      this.add(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 24), toon(TILE_SKIN[kind].color), cx(c), 0.07, cx(r));
-      const sp = emojiSprite(TILE_SKIN[kind].icon, 0.62);
-      sp.position.set(cx(c), 0.62, cx(r));
-      this.world.add(sp);
-      this.tileSprites.push(sp);
+      const cell = this.cells.get(+abs);
+      const top = cell ? new THREE.Box3().setFromObject(cell).max.y : H.track;
+      const d = tileDecal(kind, 0.74);
+      d.position.set(cx(c), top + 0.004, cx(r));
+      this.world.add(d);
     }
   }
 

@@ -106,7 +106,7 @@ button, input, select { font: inherit; color: inherit; }
 /* 3D board: no player panels (the avatars stand for the players), the turn's cards sit by the dice */
 .full-board .panel-slot { display: none; }
 .full-board .topbar .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* screen readers only */
-.full-board [data-settings] { margin-left: auto; }
+.full-board [data-follow] { margin-left: auto; }
 .hand { display: none; }
 .full-board .hand:not(:empty) { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
 /* 3D board template */
