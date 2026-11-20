@@ -35,8 +35,8 @@ Server không cần mở cổng hay có IP tĩnh: container `cloudflared` tự n
 1. Tên miền `tst.io.vn` phải đang dùng nameserver của Cloudflare (Cloudflare → *Add a site*).
 2. Cloudflare dashboard → **Zero Trust → Networks → Tunnels → Create a tunnel** → loại *Cloudflared* → đặt tên (ví dụ `chess`).
    Ở bước cài đặt, chọn *Docker* và chỉ copy phần token (chuỗi dài sau `--token`).
-3. Trong tunnel đó, tab **Public Hostname → Add**: subdomain `chess`, domain `tst.io.vn`,
-   service `HTTP` → `co-ca-ngua:3000`. Cloudflare tự tạo bản ghi DNS `chess.tst.io.vn`.
+3. Trong tunnel đó, **Add a route → Published application**: subdomain `chess`, domain `tst.io.vn`,
+   Service URL `http://co-ca-ngua:3000` (http, không phải https; không dùng localhost). Cloudflare tự tạo bản ghi DNS `chess.tst.io.vn`.
 4. Trên server, trong thư mục repo:
    ```bash
    echo "CLOUDFLARE_TUNNEL_TOKEN=<token>" > .env   # .env không được commit

@@ -15,28 +15,10 @@ html, body { margin: 0; min-height: 100%; }
 body {
   font-family: var(--font);
   color: var(--ink);
-  background: linear-gradient(160deg, #ffe0f0 0%, #e6dcff 45%, #cff4ff 100%);
+  background: #151e32; /* night sky: the first paint, before the menu or the game draws its own backdrop */
   overflow-x: hidden;
 }
 button, input, select { font: inherit; color: inherit; }
-
-/* ---------- ambient background (pure CSS: cheap, runs on the compositor) ---------- */
-.sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.rays {
-  position: absolute; left: 50%; top: 50%; width: 220vmax; height: 220vmax; margin: -110vmax;
-  background: repeating-conic-gradient(from 0deg, #ffffff55 0deg 8deg, transparent 8deg 20deg);
-  animation: spin 90s linear infinite;
-  mask-image: radial-gradient(circle, #000 0%, transparent 60%);
-}
-.sky::before, .sky::after {
-  content: '✦ ✧ ★ ✦ ✧ ✦ ★ ✧'; position: absolute; left: 0; right: 0; font-size: 28px; letter-spacing: 12vw;
-  color: #fff; text-shadow: 0 0 12px #ffb3d9; opacity: .8; animation: twinkle 4s ease-in-out infinite alternate;
-}
-.sky::before { top: 8%; }
-.sky::after { bottom: 6%; animation-delay: -2s; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes twinkle { from { opacity: .25; transform: translateY(0); } to { opacity: .9; transform: translateY(-10px); } }
-@media (prefers-reduced-motion: reduce) { .rays, .sky::before, .sky::after { animation: none; } }
 
 /* ---------- common widgets ---------- */
 .btn {
