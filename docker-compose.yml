@@ -3,8 +3,7 @@ services:
     build: .
     restart: unless-stopped
     init: true # forwards `docker stop` to node instead of waiting 10 s to kill it
-    ports:
-      - "127.0.0.1:3000:3000" # local check only: the public way in is the tunnel below
+    # no published port: cloudflared reaches it as co-ca-ngua:3000 on the compose network, so nothing clashes with the host
 
   # Cloudflare Tunnel: https://chess.tst.io.vn → co-ca-ngua:3000, no open port on the server (README: "Deploy").
   cloudflared:

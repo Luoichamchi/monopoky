@@ -45,7 +45,8 @@ Server không cần mở cổng hay có IP tĩnh: container `cloudflared` tự n
    ```
 5. Mở https://chess.tst.io.vn. Cập nhật bản mới: `git pull && docker compose up -d --build`.
 
-Game cũng nghe ở `http://127.0.0.1:3000` trên chính server (để kiểm tra), không mở ra ngoài.
+Container không mở cổng nào trên server (tunnel nối vào qua mạng nội bộ của Docker), nên không đụng cổng của app khác.
+Kiểm tra từ server: `docker compose exec co-ca-ngua wget -qO- localhost:3000 | head -c 100`.
 Không cần chỉnh gì thêm trong Cloudflare: WebSocket bật sẵn, file trong `/assets/` được cache lâu (tên có hash),
 model và ảnh thì trình duyệt hỏi lại và nhận 304 nếu chưa đổi.
 
