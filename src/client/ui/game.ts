@@ -222,6 +222,7 @@ export class GameScreen {
       case 'roll':
         this.say(`${this.name(e.player)} đổ được <b>${e.value}</b>`);
         sfx.play('roll');
+        void this.board.animate(e); // 3D atlas: the centre flag catches a gust
         await this.dice.roll(e.value, this.color(e.player).main);
         sfx.play('land');
         break;

@@ -143,6 +143,9 @@ export class Board3D implements BoardRenderer {
   private star?: THREE.Object3D;
   private starY = 1.2; // bobbing centre of the spinning centrepiece
   private dust?: SpiritDust;
+  private flag?: { geo: THREE.BufferGeometry; pos: THREE.BufferAttribute; rest: Float32Array; width: number };
+  private wave = 0; // flag wave phase
+  private gust = 0; // 1 right after a dice roll, fades back to a breeze
   private marker: THREE.Mesh;
   private turnSeat = -1;
   private pickable = new Set<number>();
@@ -214,6 +217,7 @@ export class Board3D implements BoardRenderer {
     this.world.clear();
     this.cells.clear();
     this.tileSprites = [];
+    this.star = this.flag = undefined;
     this.drawBoard(s);
     this.horses = s.horses.map(h => this.makeHorse(seatOf(s, h.owner), h.id));
     this.dust = undefined;
@@ -275,6 +279,9 @@ export class Board3D implements BoardRenderer {
         this.horses[e.horse].bubble.visible = e.on;
         if (e.on) await burst(this.fx, ...this.screen(this.horses[e.horse].root.position, 0.5), ['#7fd8ff', '#ffffff'], 10);
         break;
+      case 'roll':
+        this.gust = 1;
+        break;
       case 'freeze':
         this.horses[e.horse].ice.visible = e.on;
         if (e.on) await burst(this.fx, ...this.screen(this.horses[e.horse].root.position, 0.5), ['#bdf0ff', '#ffffff'], 14);
@@ -307,6 +314,7 @@ export class Board3D implements BoardRenderer {
     this.animateSpirits(dt, t);
     this.tileSprites.forEach((sp, i) => (sp.position.y = 0.62 + Math.sin(t * 2.2 + i) * 0.06));
     if (this.star) (this.star.rotation.y = t * 0.8), (this.star.position.y = this.starY + Math.sin(t * 2) * 0.12);
+    if (this.flag) this.waveFlag(dt);
     const glow = 0.25 + 0.25 * Math.sin(t * 5);
     this.stables.forEach((mats, seat) => mats.forEach(m => (m.emissiveIntensity = seat === this.turnSeat ? glow : 0)));
     const pulse = 1 + 0.12 * Math.sin(t * 8);
@@ -314,6 +322,21 @@ export class Board3D implements BoardRenderer {
     this.marker.rotation.z = t * 2;
     this.controls.update();
     this.effect.render(this.scene, this.camera);
+  }
+
+  /** Atlas centre flag: a travelling wave pinned at the pole, stronger for a moment after each roll. */
+  private waveFlag(dt: number) {
+    const { geo, pos, rest, width } = this.flag!;
+    this.gust = Math.max(0, this.gust - dt * 0.7);
+    const amp = 0.09 * (1 + 1.6 * this.gust);
+    this.wave += dt * 4.2 * (1 + 0.8 * this.gust); // integrate the speed so a gust never makes the wave jump
+    for (let i = 0; i < pos.count; i++) {
+      const x = rest[i * 3], y = rest[i * 3 + 1];
+      const k = x / width; // 0 at the pole → 1 at the free edge
+      pos.setZ(i, amp * k * Math.sin(x * 3.2 - this.wave + y * 0.8));
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
   }
 
   /** Idle life of the atlas pieces: floating head, swirling smoke (thicker when pickable), rising dust. */
@@ -518,8 +541,13 @@ export class Board3D implements BoardRenderer {
     });
     this.stables = stables;
     this.world.add(board);
-    const hub = board.getObjectByName('hub');
-    if (hub) (this.star = hub), (this.starY = hub.position.y);
+    const cloth = board.getObjectByName('hub_flag') as THREE.Mesh | undefined;
+    if (cloth) {
+      cloth.geometry = cloth.geometry.clone(); // the wave edits vertices: keep the cached asset flat
+      const geo = cloth.geometry, pos = geo.getAttribute('position') as THREE.BufferAttribute;
+      geo.computeBoundingBox();
+      this.flag = { geo, pos, rest: (pos.array as Float32Array).slice(), width: geo.boundingBox!.max.x };
+    }
   }
 
   private drawOriginal(used: Set<number>) {
