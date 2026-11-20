@@ -2,7 +2,6 @@
 
 | File | Asset | Author | License | Source |
 |---|---|---|---|---|
-| horse.glb | Horse (low poly, animated: Idle, Walk, Run, Jump, Death) | Quaternius | CC0 1.0 (public domain) | https://poly.pizza/m/F8HAAcLeBL |
 | atlas-board.glb | "Tinh bàn Thiên Mã" 3D board | this project | same as the project | exported from `blender/atlas-board.blend` |
 | horse-piece.glb | "Tinh bàn Thiên Mã" chess-piece horse (horse_base + horse_spirit) | this project | same as the project | built by `tools/blender/horse_piece.py` |
 

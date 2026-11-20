@@ -1,7 +1,6 @@
 // Contracts between the game screen and the visual templates. Board and dice are independent:
 // any board template can be combined with any dice template, and both can be swapped mid-game.
 import type { GameEvent, GameState, Toss } from '../../core/types.ts';
-import type { BoardTheme } from './board-themes.ts';
 
 export type TemplateKind = '2d' | '3d';
 
@@ -49,21 +48,17 @@ async function pick<T>(kind: TemplateKind, load2d: () => Promise<T>, load3d: () 
   }
 }
 
-export const loadBoard = (kind: TemplateKind, theme: BoardTheme): Promise<MakeBoard> =>
+export const loadBoard = (kind: TemplateKind): Promise<MakeBoard> =>
   pick<MakeBoard>(
     kind,
     async () => {
-      if (theme === 'original') {
-        const { ClassicBoard } = await import('./classic-board.ts');
-        return host => new ClassicBoard(host);
-      }
-      const [{ BoardView }, { boardArt }] = await Promise.all([import('./board-view.ts'), import('./board-art.ts')]);
-      return host => new BoardView(host, boardArt[theme]);
+      const [{ BoardView }, { atlasArt }] = await Promise.all([import('./board-view.ts'), import('./board-art.ts')]);
+      return host => new BoardView(host, atlasArt);
     },
     async () => {
       const { Board3D, preload } = await import('../render3d/board3d.ts');
-      await preload(theme);
-      return host => new Board3D(host, theme);
+      await preload();
+      return host => new Board3D(host);
     },
     'board',
   );

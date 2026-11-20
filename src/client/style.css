@@ -249,4 +249,58 @@ button, input, select { font: inherit; color: inherit; }
 .horse.frozen { filter: saturate(.25) brightness(1.3) drop-shadow(0 0 3px #bdf0ff) drop-shadow(0 0 6px #7fd8ff); }
 
 /* 3D "Tinh bàn Thiên Mã": night-sky backdrop behind the Blender table */
-.game[data-theme="3d"][data-board-theme="atlas"] { background: linear-gradient(180deg, #0a102073, #0c132636 72%, #101b3033), url('/art/tinh-son.jpg') center / cover, #151e32; }
+.game[data-theme="3d"] { background: linear-gradient(180deg, #0a102073, #0c132636 72%, #101b3033), url('/art/tinh-son.jpg') center / cover, #151e32; }
+
+/* Game-screen base shared by the 2D board (atlas.css restyles it) and the 3D board. */
+.ui-icon { width: 1.05em; height: 1.05em; vertical-align: -.15em; flex: none; }
+.arena-only { display: none; }
+.arena-stage, .arena-rail, .roster, .roll-well { display: contents; }
+.horse-stats { display: grid; gap: 2px; margin-left: auto; font: 600 .7rem/1.15 system-ui, sans-serif; white-space: nowrap; }
+.horse-stats span { display: inline-flex; align-items: center; gap: 4px; }
+/* The terrain is projected by the renderer. Sprites stay upright in screen space. */
+.board, .board > svg { width: 100%; height: 100%; display: block; }
+.board > svg { overflow: visible; filter: drop-shadow(4px 14px 6px #43509755); }
+.board .horse, .board .hbody, .board .fx * { transform-box: fill-box; transform-origin: center; }
+.board .hbody { transform-origin: center bottom; }
+.board .stable.off, .board .lane.off { filter: saturate(.35); }
+.board .stable.active > polygon:last-of-type { stroke: #fff; stroke-width: 3; }
+.board .stable-name { font: 800 14px system-ui, sans-serif; letter-spacing: 2px; text-anchor: middle; }
+.board .lane-number { font: 800 21px system-ui, sans-serif; text-anchor: middle; }
+.projections, .board .fx, .board .marker, .board .horse { pointer-events: none; }
+.horse .figure { filter: drop-shadow(0 1px 0 #37315185); }
+[data-seat="0"], [data-turn-seat="0"] .turn-portrait { --mane-hue: 116deg; }
+[data-seat="2"], [data-turn-seat="2"] .turn-portrait { --mane-hue: -72deg; }
+[data-seat="3"], [data-turn-seat="3"] .turn-portrait { --mane-hue: 172deg; }
+.horse .figure image { filter: hue-rotate(var(--mane-hue, 0deg)); }
+.horse.pickable .figure, .horse-target.enabled { pointer-events: auto; cursor: pointer; }
+.horse-target { fill: transparent; pointer-events: none; }
+.horse-target:focus-visible { outline: none; stroke: #fff3cc; stroke-width: 2; stroke-dasharray: 3 3; }
+.horse .bubble { fill: #9de7ff33; stroke: #bfefff; stroke-width: 1.75; opacity: 0; }
+.horse.shielded .bubble { opacity: 1; }
+.pick-ring { opacity: 0; fill: none; stroke-width: 2.5; stroke-dasharray: 5 3; }
+.selectable .pick-ring { opacity: 1; animation: arena-ring 1.4s linear infinite; }
+.horse.pickable .figure { animation: spirit-float 1.2s ease-in-out infinite; }
+.marker { fill: #fff0bb33; stroke-width: 3; stroke-dasharray: 5 3; opacity: 0; }
+.marker.on { opacity: 1; animation: arena-ring 1.4s linear infinite; }
+@keyframes arena-ring { to { stroke-dashoffset: -32; } }
+@keyframes spirit-float { 50% { transform: translateY(-4px); } }
+.arena-brand .ui-icon { fill: #ffcc68; stroke: #ffcc68; }
+.arena-heading h1 {
+  margin: 0; font: italic 800 clamp(29px,3.2vw,52px)/1.12 var(--font); color: #fff;
+  -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: 3px 4px var(--ink);
+}
+.arena-heading span, .roster-title span, .turn-portrait span { font: 800 11px/1.25 system-ui,sans-serif; }
+.arena-heading span { background: #ffdc77; color: #322541; padding: 5px 11px; border: 2px solid var(--ink); border-radius: 5px; box-shadow: 2px 2px var(--ink); }
+.turn-portrait::after {
+  content: ''; position: absolute; z-index: -1; width: 52%; right: -1%; top: -10%; bottom: -47%; transform: scaleX(-1);
+}
+.turn-portrait span { text-transform: uppercase; letter-spacing: .1em; }
+.turn-portrait strong { font: italic 800 clamp(23px,2.5vw,38px)/1.08 var(--font); overflow-wrap: anywhere; }
+.roll-button kbd { font: 600 10px/1.2 system-ui; border: 1px solid #6c5c57; padding: 2px 4px; border-radius: 3px; }
+.roster-title h2 { margin: 0; font: italic 800 24px/1.15 var(--font); }
+.roster-title span { border-radius: 3px; padding: 4px 7px; background: #eee9ff; color: #514480; }
+@media (max-width: 760px) {
+  .turn-portrait strong { font-size: 22px; }
+  .turn-portrait span { font-size: 8px; }
+  .roll-button kbd { display: none; }
+}

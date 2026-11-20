@@ -167,7 +167,6 @@ export class BoardView implements BoardRenderer {
     svg('ellipse', { rx: 13, ry: 5, fill: color, 'fill-opacity': .36, stroke: color, 'stroke-width': 1.6 }, projection);
     svg('ellipse', { rx: 8, ry: 3, fill: color }, projection);
     svg('ellipse', { rx: 18, ry: 9, stroke: color, class: 'pick-ring' }, projection);
-    this.art.tether?.(projection, seat);
 
     const g = svg('g', { class: 'horse', 'data-seat': seat }, this.horseLayer);
     g.style.setProperty('--spirit', color);

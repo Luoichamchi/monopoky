@@ -64,14 +64,15 @@ src/
    ├─ main.ts               menu, phòng chờ, chơi offline/online
    ├─ net.ts                kết nối socket
    ├─ ui/game.ts            màn chơi: phát sự kiện qua renderer, nhận click → hành động
-   ├─ style.css             theme anime (CSS)
+   ├─ style.css             CSS chung của menu và màn chơi
+   ├─ atlas.css             giao diện Tinh bàn Thiên Mã (bản đồ 2D)
    ├─ audio/                ÂM THANH: tạo bằng Web Audio, không cần file âm thanh
    │  ├─ engine.ts          phần dùng chung: AudioContext, kênh riêng cho nhạc/hiệu ứng, hàm tạo âm cơ bản
    │  ├─ music.ts           nhạc nền: music.play(on), music.setEnabled(on)
    │  └─ sfx.ts             hiệu ứng: đổ xúc xắc, bước đi, đá, từng ô đặc biệt, thẻ bài: sfx.play(name)
    │                        muốn dùng file thật: giữ nguyên API, chỉ thay phần thân hàm của file tương ứng
    ├─ render3d/             TEMPLATE 3D (three.js, chỉ tải khi người chơi chọn 3D)
-   │  ├─ board3d.ts         BẢN ĐỒ 3D: toon-shading + viền mực, ngựa 3D có hoạt ảnh, camera tự canh khung + xoay/zoom
+   │  ├─ board3d.ts         BẢN ĐỒ 3D Tinh bàn Thiên Mã: bàn và quân cờ dựng trong Blender, camera tự canh khung + xoay/zoom
    │  ├─ dice3d.ts          XÚC XẮC 3D: widget WebGL riêng, tung lộn vòng rồi dừng đúng mặt số
    │  └─ toon.ts            vật liệu toon/viền dùng chung, giải phóng WebGL khi đổi template
    └─ render/               ĐỒ HOẠ: thay/nâng cấp ở đây mà không đụng vào luật
@@ -79,7 +80,9 @@ src/
       ├─ theme.ts           màu từng phe, chữ hiệu ứng, ký hiệu ngựa
       ├─ skins.ts           icon/màu của ô đặc biệt & thẻ bài
       ├─ layout.ts          ô logic → toạ độ pixel
-      ├─ board-view.ts      vẽ bàn SVG + hoạt ảnh di chuyển/đá/ô đặc biệt
+      ├─ board-view.ts      bàn SVG: quân ngựa + hoạt ảnh di chuyển/đá/ô đặc biệt
+      ├─ board-art.ts       BoardArt: phần vẽ mặt bàn 2D mà board-view dùng (thêm bản đồ 2D mới = thêm một BoardArt)
+      ├─ atlas.ts           mặt bàn 2D Tinh bàn Thiên Mã
       ├─ dice.ts            xúc xắc
       └─ fx.ts              hiệu ứng anime.js dùng chung
 ```
@@ -92,7 +95,7 @@ src/
 
 **Template đồ hoạ:** bản đồ và xúc xắc là 2 phần độc lập, ghép tùy ý (2D/3D × 2D/3D). Ở menu, nút "2D | 3D" đặt nhanh cả hai. Trong ván, bấm 🎨 để đổi riêng từng phần ngay lúc đang chơi: lệnh đổi được xếp hàng sau hoạt ảnh đang chạy, bản cũ được giải phóng hoàn toàn (kể cả WebGL context), bản mới vẽ lại từ trạng thái ván. Lựa chọn lưu trong trình duyệt (`ccn.look`) và chỉ ảnh hưởng người chơi đó, kể cả khi chơi online. Muốn thêm template mới (ví dụ PixiJS) thì implement `BoardRenderer` hoặc `DiceRenderer` trong `render/renderer.ts` và thêm vào `loadBoard`/`loadDice`. Máy không chạy được WebGL thì tự quay về 2D.
 
-**Asset 3D** nằm trong `public/models/` (credit và giấy phép ở `public/models/LICENSE.md`). Sau mỗi lần xuất lại một file `.glb` từ Blender, chạy `npm run models` để nén nó (khoảng 3–6 lần nhỏ hơn, hình không đổi). Ngựa: *Horse* của Quaternius, CC0. Muốn đổi model khác thì thay `horse.glb`; code tô màu theo tên vật liệu (`Material.003` là thân) và tìm hoạt ảnh theo đuôi tên `Idle`, `Run`, `Death`.
+**Asset 3D** nằm trong `public/models/` (credit và giấy phép ở `public/models/LICENSE.md`). Sau mỗi lần xuất lại một file `.glb` từ Blender, chạy `npm run models` để nén nó (khoảng 3–6 lần nhỏ hơn, hình không đổi). Bàn: `atlas-board.glb` (từ `blender/atlas-board.blend`). Quân ngựa: `horse-piece.glb` (dựng bằng `tools/blender/horse_piece.py`); code tô màu theo tên vật liệu `hp_mane`, `hp_base`.
 
 **Nâng cấp đồ hoạ:** đổi màu/phong cách trong `theme.ts` và `style.css`; thay quân ngựa trong `BoardView.drawHorse()` (ví dụ dùng `<image>` sprite chibi); thêm hiệu ứng vào `fx.ts`. Nếu hoạt ảnh dài/ngắn hơn đáng kể thì chỉnh `TIMING` trong `session.ts` để bot chờ đúng nhịp.
 

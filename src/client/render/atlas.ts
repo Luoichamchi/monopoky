@@ -2,7 +2,14 @@
 import { GATE, STABLE, absOf } from '../../core/board.ts';
 import { svg } from './fx.ts';
 import { CELL, CORNERS, HOME_CELLS, TRACK_CELLS, center, horseXY } from './layout.ts';
+import { TILE_ENGRAVING, TILE_SKIN } from './skins.ts';
 import { seatColor } from './theme.ts';
+
+export function drawSpecialTile(parent: SVGElement, x: number, y: number, kind: string) {
+  const g = svg('g', { transform: `translate(${x} ${y})` }, parent);
+  svg('circle', { r: 12.5, fill: '#29333d', stroke: TILE_SKIN[kind].color, 'stroke-opacity': .6 }, g);
+  svg('path', { d: TILE_ENGRAVING[kind], fill: 'none', stroke: TILE_SKIN[kind].color, 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+}
 
 export const ENAMEL = ['#f997b4', '#8cc9fa', '#78d9b8', '#f3c777'];
 const STONE = ['#573244', '#26415c', '#244b48', '#554432'];

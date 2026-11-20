@@ -10,8 +10,7 @@ import type { Update } from '../../session.ts';
 import { unlock } from '../audio/engine.ts';
 import { music } from '../audio/music.ts';
 import { sfx, type Sfx } from '../audio/sfx.ts';
-import { look, saveLook, themeSelect, type Look } from '../look.ts';
-import { BOARD_THEMES, isBoardTheme } from '../render/board-themes.ts';
+import { look, saveLook, type Look } from '../look.ts';
 import { loadBoard, loadDice, type BoardRenderer, type DiceRenderer, type TemplateKind } from '../render/renderer.ts';
 import { confetti, cutIn } from '../render/fx.ts';
 import { chargeOf } from '../dice/motion.ts';
@@ -19,9 +18,7 @@ import { CARD_SKIN, TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 import { esc } from './dom.ts';
 import { icon } from './icons.ts';
-import '../arena.css';
 import '../atlas.css';
-import '../spirit.css';
 
 export interface Conn {
   send(a: Action): void;
@@ -58,7 +55,7 @@ export class GameScreen {
     this.el.innerHTML = `
       <header class="topbar">
         <button class="btn ghost" data-leave aria-label="Về menu">${icon('back')}<span class="lbl"> Menu</span></button>
-        <div class="arena-brand arena-only">${icon('star')} Cờ Cá Ngựa</div>
+        <div class="arena-brand arena-only">${icon('star')} Thiên Mã</div>
         <div class="status" aria-live="polite"></div>
         <button class="btn ghost icon" data-sfx></button>
         <button class="btn ghost icon" data-music></button>
@@ -67,7 +64,7 @@ export class GameScreen {
       </header>
       <div class="table"><div class="grid">
         <div class="arena-stage">
-          <div class="arena-heading arena-only"><h1>Đảo trên mây</h1><span data-variant></span></div>
+          <div class="arena-heading arena-only"><h1>Tinh bàn</h1><span data-variant></span></div>
           <div class="board-slot"></div>
         </div>
         <div class="arena-rail">
@@ -174,25 +171,20 @@ export class GameScreen {
   }
 
   private async swap(l: Look) {
-    const needBoard = l.board !== this.shown.board || l.theme !== this.shown.theme;
+    const needBoard = l.board !== this.shown.board;
     const needDice = l.dice !== this.shown.dice;
     if (!needBoard && !needDice) return;
     if (this.board && this.dice) this.lockInput();
     const before = this.status.innerHTML;
     if ((needBoard && l.board === '3d') || (needDice && l.dice === '3d')) this.say('Đang tải giao diện 3D…');
-    const [makeBoard, makeDice] = await Promise.all([needBoard && loadBoard(l.board, l.theme), needDice && loadDice(l.dice)]);
+    const [makeBoard, makeDice] = await Promise.all([needBoard && loadBoard(l.board), needDice && loadDice(l.dice)]);
     if (makeBoard) {
       this.board?.destroy();
       this.board = makeBoard(this.el.querySelector('.board-slot')!);
       this.board.onHop = () => sfx.play('hop');
       this.el.classList.toggle('full-board', !!this.board.fullTable);
-      const layered = !this.board.fullTable && l.theme !== 'original';
-      this.el.dataset.theme = this.board.fullTable ? '3d' : l.theme;
-      this.el.dataset.boardTheme = l.theme; // lets 3D pick up the theme's backdrop
-      this.el.classList.toggle('arena-game', layered && l.theme !== 'atlas');
-      this.el.classList.toggle('atlas-game', layered && l.theme === 'atlas');
-      this.el.querySelector('.arena-heading h1')!.textContent = l.theme === 'atlas' ? 'Tinh bàn' : BOARD_THEMES[l.theme];
-      this.el.querySelector('.arena-brand')!.innerHTML = icon('star') + (l.theme === 'atlas' ? ' Thiên Mã' : ' Cờ Cá Ngựa');
+      const layered = !this.board.fullTable;
+      this.el.dataset.theme = layered ? 'atlas' : '3d';
       const anchor = this.el.querySelector(layered ? '.roll-well' : '[data-sfx]')!;
       anchor.before(this.status);
       if (this.s) {
@@ -450,7 +442,6 @@ export class GameScreen {
       <div class="modal look">
         <h2>🎨 Giao diện</h2>
         ${seg('board', 'Bản đồ')}
-        ${themeSelect()}
         ${seg('dice', 'Xúc xắc')}
         <p class="hint">Đổi ngay trong ván, không ảnh hưởng người chơi khác. 3D cần tải thêm lần đầu.</p>
         <div class="row"><button class="btn" data-close>Xong</button></div>
@@ -462,13 +453,6 @@ export class GameScreen {
         this.setLook({ ...look });
       }),
     );
-    o.querySelector<HTMLSelectElement>('[data-theme-select]')!.onchange = e => {
-      const value = (e.currentTarget as HTMLSelectElement).value;
-      if (!isBoardTheme(value)) return;
-      look.theme = value;
-      saveLook();
-      this.setLook({ ...look });
-    };
     o.querySelector<HTMLButtonElement>('[data-close]')!.onclick = () => (o.hidden = true);
   }
 

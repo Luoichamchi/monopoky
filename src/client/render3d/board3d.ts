@@ -5,36 +5,29 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { GATE, HOME, STABLE, absOf, seatOf } from '../../core/board.ts';
 import type { GameEvent, GameState } from '../../core/types.ts';
 import { TIMING } from '../../session.ts';
 import { animate, burst, done, explosion, iconPop, impact, sfxText, shake, svg, utils } from '../render/fx.ts';
-import { CELL, CORNERS, HOME_CELLS, TRACK_CELLS, center, horseXY } from '../render/layout.ts';
+import { CELL, TRACK_CELLS, horseXY } from '../render/layout.ts';
 import type { BoardRenderer } from '../render/renderer.ts';
-import { GRADIENT, INK, disposeRenderer, noOutline, toon } from './toon.ts';
+import { INK, disposeRenderer, noOutline, toon } from './toon.ts';
 import { mergeStatic } from './merge.ts';
 import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
 import { TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
-import type { BoardTheme } from '../render/board-themes.ts';
 
 // ---------- assets ----------
 
-const HORSE_URL = `${import.meta.env.BASE_URL}models/horse.glb`; // Quaternius, CC0 – see public/models/LICENSE.md
 const ATLAS_URL = `${import.meta.env.BASE_URL}models/atlas-board.glb`; // built by tools/blender/atlas_board.py
-let horseAsset: GLTF | undefined;
 let atlasAsset: GLTF | undefined;
 const PIECE_URL = `${import.meta.env.BASE_URL}models/horse-piece.glb`; // built by tools/blender/horse_piece.py
 let pieceAsset: GLTF | undefined;
 
-export async function preload(theme: BoardTheme) {
+export async function preload() {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // models are packed by `npm run models`
-  horseAsset ??= await loader.loadAsync(HORSE_URL);
-  if (theme === 'atlas') {
-    atlasAsset ??= await loader.loadAsync(ATLAS_URL);
-    pieceAsset ??= await loader.loadAsync(PIECE_URL);
-  }
+  atlasAsset ??= await loader.loadAsync(ATLAS_URL);
+  pieceAsset ??= await loader.loadAsync(PIECE_URL);
   await document.fonts?.load('800 64px "Baloo 2"').catch(() => undefined); // labels are drawn on canvases
 }
 
@@ -43,24 +36,6 @@ export async function preload(theme: BoardTheme) {
 /** World units: 1 cell = 1 unit, board centered on the origin. */
 const W = (px: number) => px / CELL - 7.5;
 const H = { track: 0.08, lane: 0.22, stable: 0.36 }; // surface heights a horse stands on
-/** Rounded slab lying on the XZ plane, bottom at y=0. */
-function slab(w: number, d: number, h: number, r: number) {
-  const s = new THREE.Shape();
-  const [x, y] = [-w / 2, -d / 2];
-  s.moveTo(x + r, y);
-  s.lineTo(x + w - r, y);
-  s.quadraticCurveTo(x + w, y, x + w, y + r);
-  s.lineTo(x + w, y + d - r);
-  s.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
-  s.lineTo(x + r, y + d);
-  s.quadraticCurveTo(x, y + d, x, y + d - r);
-  s.lineTo(x, y + r);
-  s.quadraticCurveTo(x, y, x + r, y);
-  const g = new THREE.ExtrudeGeometry(s, { depth: h, bevelEnabled: false, curveSegments: 5 });
-  g.rotateX(-Math.PI / 2);
-  return g;
-}
-
 function canvasTexture(size: number, draw: (c: CanvasRenderingContext2D) => void) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = size;
@@ -69,20 +44,6 @@ function canvasTexture(size: number, draw: (c: CanvasRenderingContext2D) => void
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   return t;
-}
-
-/** Flat text/icon decal lying on a surface. */
-function decal(text: string, color: string, size = 0.62, font = '800 84px "Baloo 2", sans-serif') {
-  const map = canvasTexture(128, c => {
-    c.font = font;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillStyle = color;
-    c.fillText(text, 64, 70);
-  });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), noOutline(new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false })));
-  m.rotation.x = -Math.PI / 2;
-  return m;
 }
 
 function emojiSprite(icon: string, size: number) {
@@ -104,11 +65,7 @@ interface Horse3D {
   bubble: THREE.Mesh;
   ice: THREE.Mesh; // shown while the horse is frozen
   hit: THREE.Mesh;
-  mixer: THREE.AnimationMixer;
-  idle?: THREE.AnimationAction;
-  run?: THREE.AnimationAction;
-  death?: THREE.AnimationAction;
-  spirit?: SpiritParts; // atlas chess-piece horses only
+  spirit: SpiritParts;
 }
 
 interface SpiritParts {
@@ -144,8 +101,6 @@ export class Board3D implements BoardRenderer {
   private cells = new Map<number, THREE.Mesh>();
   private stables: GlowMaterial[][] = []; // per seat: what pulses when it is that seat's turn
   private tileSprites: THREE.Sprite[] = [];
-  private star?: THREE.Object3D;
-  private starY = 1.2; // bobbing centre of the spinning centrepiece
   private dust?: SpiritDust;
   private merged: THREE.BufferGeometry[] = []; // atlas meshes merged per material (disposed on rebuild)
   private flag?: { geo: THREE.BufferGeometry; pos: THREE.BufferAttribute; rest: Float32Array; left: number; width: number; s: number; o: THREE.Vector3 };
@@ -159,10 +114,7 @@ export class Board3D implements BoardRenderer {
   private down?: [number, number];
   readonly fullTable = true; // the board fills the table; panels and the dice float above it
 
-  private theme: BoardTheme;
-
-  constructor(host: HTMLElement, theme: BoardTheme = 'spirit') {
-    this.theme = theme;
+  constructor(host: HTMLElement) {
     this.el = document.createElement('div');
     this.el.className = 'board3d';
     host.appendChild(this.el);
@@ -222,15 +174,12 @@ export class Board3D implements BoardRenderer {
     this.world.clear();
     this.cells.clear();
     this.tileSprites = [];
-    this.star = this.flag = undefined;
+    this.flag = undefined;
     this.drawBoard(s);
     this.horses = s.horses.map(h => this.makeHorse(seatOf(s, h.owner), h.id));
-    this.dust = undefined;
-    if (this.horses[0]?.spirit) {
-      const fewer = matchMedia('(pointer: coarse)').matches; // phones: half the particles
-      this.dust = new SpiritDust(s.horses.map(h => new THREE.Color(seatColor(seatOf(s, h.owner)).main)), fewer ? 12 : 24);
-      this.world.add(this.dust.points);
-    }
+    const fewer = matchMedia('(pointer: coarse)').matches; // phones: half the particles
+    this.dust = new SpiritDust(s.horses.map(h => new THREE.Color(seatColor(seatOf(s, h.owner)).main)), fewer ? 12 : 24);
+    this.world.add(this.dust.points);
     this.pos = s.horses.map(() => STABLE);
     this.sync(s);
   }
@@ -261,11 +210,7 @@ export class Board3D implements BoardRenderer {
     switch (e.t) {
       case 'move':
         if (e.jump) await this.teleport(e.horse, e.path[0]);
-        else {
-          this.play(e.horse, 'run');
-          for (const p of e.path) await this.hop(e.horse, p);
-          this.play(e.horse, 'idle');
-        }
+        else for (const p of e.path) await this.hop(e.horse, p);
         break;
       case 'kick':
         await this.kick(e.horse);
@@ -315,10 +260,8 @@ export class Board3D implements BoardRenderer {
     this.timer.update();
     const dt = this.timer.getDelta();
     const t = this.timer.getElapsed();
-    for (const h of this.horses) h.mixer.update(dt);
     this.animateSpirits(dt, t);
     this.tileSprites.forEach((sp, i) => (sp.position.y = 0.62 + Math.sin(t * 2.2 + i) * 0.06));
-    if (this.star) (this.star.rotation.y = t * 0.8), (this.star.position.y = this.starY + Math.sin(t * 2) * 0.12);
     if (this.flag) this.waveFlag(dt);
     const glow = 0.25 + 0.25 * Math.sin(t * 5);
     this.stables.forEach((mats, seat) => mats.forEach(m => (m.emissiveIntensity = seat === this.turnSeat ? glow : 0)));
@@ -350,7 +293,7 @@ export class Board3D implements BoardRenderer {
     smokeTime.value = t;
     const moving: boolean[] = [];
     this.horses.forEach((h, id) => {
-      const sp = h.spirit!;
+      const sp = h.spirit;
       const picked = this.pickable.has(id);
       moving[id] = sp.last.distanceToSquared(h.root.position) > 1e-6;
       sp.last.copy(h.root.position);
@@ -370,7 +313,7 @@ export class Board3D implements BoardRenderer {
       i => {
         const h = this.horses[i];
         if (h.body.scale.x < 0.5) return null; // hidden mid kick / teleport
-        return at.copy(h.root.position).setY(h.root.position.y + h.spirit!.pedestal * 0.9);
+        return at.copy(h.root.position).setY(h.root.position.y + h.spirit.pedestal * 0.9);
       },
       i => (this.pickable.has(i) || moving[i] ? 1 : 0),
     );
@@ -502,8 +445,7 @@ export class Board3D implements BoardRenderer {
     const used = new Set(s.players.map(p => p.seat));
     const cx = (c: number) => c + 0.5 - 7.5; // cell index -> world
 
-    if (this.theme === 'atlas') this.drawAtlas(used);
-    else this.drawOriginal(used);
+    this.drawAtlas(used);
 
     // party tiles: colored disc + floating emoji
     for (const [abs, kind] of Object.entries(s.tiles)) {
@@ -573,88 +515,6 @@ export class Board3D implements BoardRenderer {
     }
   }
 
-  private drawOriginal(used: Set<number>) {
-    const cx = (c: number) => c + 0.5 - 7.5; // cell index -> world
-    this.add(slab(16.4, 16.4, 0.5, 0.8), toon('#fffaf3'), 0, -0.5, 0);
-
-    this.stables = CORNERS.map(([c, r], seat) => {
-      const col = seatColor(seat);
-      const [x, z] = [c + 3 - 7.5, r + 3 - 7.5];
-      const dim = used.has(seat) ? 1 : 0.35;
-      const mat = toon(new THREE.Color(col.main).lerp(new THREE.Color('#ddd'), 1 - dim), { emissive: new THREE.Color(col.main), emissiveIntensity: 0 });
-      this.add(slab(5.6, 5.6, 0.3, 0.7), mat, x, 0, z);
-      this.add(slab(4.2, 4.2, 0.05, 0.5), toon(col.light), x, 0.3, z);
-      for (let k = 0; k < 4; k++) {
-        const [px, py] = horseXY(seat, STABLE, k);
-        const ring = this.add(new THREE.RingGeometry(0.3, 0.4, 24), noOutline(new THREE.MeshBasicMaterial({ color: col.main })), W(px), H.stable + 0.002, W(py), false);
-        ring.rotation.x = -Math.PI / 2;
-      }
-      return [mat];
-    });
-
-    // shared track: low pale tiles that rise and take color when a horse stands on them
-    const starts = [0, 1, 2, 3].map(seat => absOf(seat, 0));
-    const gates = [0, 1, 2, 3].map(seat => absOf(seat, GATE));
-    const tileGeo = slab(0.86, 0.86, 0.045, 0.14);
-    TRACK_CELLS.forEach(([c, r], abs) => {
-      if (gates.includes(abs)) return;
-      const seat = starts.indexOf(abs);
-      const m = this.add(tileGeo, toon(seat >= 0 ? seatColor(seat).main : '#efe8fb'), cx(c), 0, cx(r));
-      if (seat >= 0) {
-        const star = decal('★', '#ffffff', 0.7);
-        star.position.set(cx(c), 0.05, cx(r));
-        this.world.add(star);
-      } else {
-        Object.assign(m.userData, { base: '#efe8fb', lift: 1.8 });
-        this.cells.set(abs, m);
-      }
-    });
-
-    // center: colored triangles + spinning star
-    const tri = [[[-1.5, -1.5], [-1.5, 1.5]], [[-1.5, -1.5], [1.5, -1.5]], [[1.5, -1.5], [1.5, 1.5]], [[-1.5, 1.5], [1.5, 1.5]]];
-    tri.forEach(([a, b], seat) => {
-      const sh = new THREE.Shape([new THREE.Vector2(a[0], -a[1]), new THREE.Vector2(b[0], -b[1]), new THREE.Vector2(0, 0)]);
-      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.08, bevelEnabled: false });
-      g.rotateX(-Math.PI / 2);
-      this.add(g, toon(seatColor(seat).light), 0, 0, 0);
-    });
-
-    // home lanes: raised colored strips, the visual focus
-    HOME_CELLS.forEach((home, seat) => {
-      const col = seatColor(seat);
-      const gate = TRACK_CELLS[absOf(seat, GATE)];
-      const all = [gate, ...home];
-      const [c0, c1] = [Math.min(...all.map(p => p[0])), Math.max(...all.map(p => p[0]))];
-      const [r0, r1] = [Math.min(...all.map(p => p[1])), Math.max(...all.map(p => p[1]))];
-      const mat = toon(used.has(seat) ? col.main : '#cccccc');
-      this.add(slab(c1 - c0 + 0.92, r1 - r0 + 0.92, 0.18, 0.3), mat, (c0 + c1) / 2 + 0.5 - 7.5, 0, (r0 + r1) / 2 + 0.5 - 7.5);
-      const [gx, gy] = center(gate).map(W);
-      const [hx, hy] = center(home[0]).map(W);
-      const arrow = decal('❯', col.dark, 0.7, '900 96px sans-serif');
-      arrow.position.set(gx, H.lane + 0.01, gy);
-      arrow.rotation.z = -Math.atan2(hy - gy, hx - gx); // plane lies flat: z-rotation turns it on the board
-      this.world.add(arrow);
-      home.forEach(([c, r], i) => {
-        const win = i >= 2;
-        this.add(slab(0.76, 0.76, 0.03, 0.14), toon(win ? '#ffffff' : col.light), cx(c), H.lane - 0.02, cx(r));
-        const num = decal(String(i + 1), win ? col.main : col.dark, 0.6);
-        num.position.set(cx(c), H.lane + 0.015, cx(r));
-        this.world.add(num);
-      });
-    });
-
-    const starShape = new THREE.Shape();
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2 - Math.PI / 2, rad = i % 2 ? 0.42 : 0.95;
-      i ? starShape.lineTo(Math.cos(a) * rad, Math.sin(a) * rad) : starShape.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
-    }
-    const star = this.add(new THREE.ExtrudeGeometry(starShape, { depth: 0.22, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05, bevelSegments: 2 }), toon('#ffd23f'), 0, 1.5, 0);
-    star.geometry.center();
-    star.geometry.rotateX(-Math.PI / 2); // lie flat, spins like a trophy medal
-    star.castShadow = true;
-    this.star = star;
-  }
-
   /** Tinh bàn chess piece: pedestal + floating spirit head (two glTF nodes), mane and pedestal in the seat color. */
   private makePiece(seat: number) {
     const col = seatColor(seat);
@@ -686,26 +546,8 @@ export class Board3D implements BoardRenderer {
   }
 
   private makeHorse(seat: number, id: number): Horse3D {
-    const src = horseAsset!;
     const col = seatColor(seat);
-    let model: THREE.Object3D, spirit: SpiritParts | undefined;
-    if (this.theme === 'atlas') ({ model, spirit } = this.makePiece(seat));
-    else {
-      model = SkeletonUtils.clone(src.scene) as THREE.Object3D;
-      const coat = toon(col.main), mane = toon(col.dark);
-      model.traverse(o => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh) return;
-        m.castShadow = true;
-        m.material = (m.material as THREE.Material).name === 'Material.003' ? coat : mane;
-      });
-      // normalise size: fit the horse's length into ~0.9 cell, feet on y=0
-      const box = new THREE.Box3().setFromObject(src.scene);
-      const size = box.getSize(new THREE.Vector3());
-      const k = 1.25 / Math.max(size.x, size.z);
-      model.scale.setScalar(k);
-      model.position.y = -box.min.y * k;
-    }
+    const { model, spirit } = this.makePiece(seat);
 
     const root = new THREE.Group();
     const body = new THREE.Group();
@@ -734,30 +576,10 @@ export class Board3D implements BoardRenderer {
     root.add(ring, bubble, ice, hit);
     this.world.add(root);
 
-    const mixer = new THREE.AnimationMixer(model);
-    const clip = (name: string) => src.animations.find(a => a.name.endsWith(name));
-    const action = (name: string) => {
-      const c = clip(name);
-      return c ? mixer.clipAction(c) : undefined;
-    };
-    const h: Horse3D = spirit
-      ? { root, body, ring, bubble, ice, hit, mixer, spirit }
-      : { root, body, ring, bubble, ice, hit, mixer, idle: action('Idle'), run: action('Run'), death: action('Death') };
-    h.idle?.play();
-    if (h.idle) h.idle.time = Math.random() * h.idle.getClip().duration; // desync idles
-    return h;
+    return { root, body, ring, bubble, ice, hit, spirit };
   }
 
   // ---------- animations ----------
-
-  private play(id: number, name: 'idle' | 'run' | 'death') {
-    const h = this.horses[id];
-    const next = h[name];
-    if (!next) return;
-    for (const a of [h.idle, h.run, h.death]) if (a && a !== next) a.fadeOut(0.15);
-    next.reset().fadeIn(0.15).play();
-    if (name === 'death') (next.setLoop(THREE.LoopOnce, 1), (next.clampWhenFinished = true));
-  }
 
   private async hop(id: number, to: number) {
     const h = this.horses[id];
@@ -793,7 +615,6 @@ export class Board3D implements BoardRenderer {
     impact(this.fx, x, y, color);
     burst(this.fx, x, y, [color, '#fff', '#ffe14d'], 16);
     sfxText(this.fx, x, y, THEME.sfx[Math.floor(Math.random() * THEME.sfx.length)], '#ffe14d');
-    this.play(id, 'death');
     await Promise.all([
       done(animate(h.root.position, { y: h.root.position.y + 3.5, duration: 380, ease: 'outQuad' })),
       done(animate(h.body.rotation, { y: h.body.rotation.y + Math.PI * 4, x: 0.6, duration: 380, ease: 'outQuad' })),
@@ -803,7 +624,6 @@ export class Board3D implements BoardRenderer {
     this.paintCells();
     h.root.position.copy(this.at(id));
     utils.set(h.body.rotation, { x: 0, y: this.faceCenter(h.root.position) });
-    this.play(id, 'idle');
     await done(animate(h.body.scale, { x: 1, y: 1, z: 1, duration: 260, ease: 'outBack(3)' }));
   }
 }

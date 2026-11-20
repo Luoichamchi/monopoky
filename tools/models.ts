@@ -10,7 +10,7 @@ import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
 const files = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['public/models/atlas-board.glb', 'public/models/horse-piece.glb', 'public/models/horse.glb'];
+  : ['public/models/atlas-board.glb', 'public/models/horse-piece.glb'];
 
 await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
 const io = new NodeIO()
