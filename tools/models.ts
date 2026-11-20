@@ -2,7 +2,7 @@
 // Meshopt: vertices are quantized (positions 14 bit) and packed; three.js decodes them with MeshoptDecoder.
 // Node names and hierarchy are kept, so the game still finds cell_<n>, stable_<n>_glow, hub_flag, horse_spirit…
 // Already compressed files are skipped, so it is safe to run after every export.
-import { statSync } from 'node:fs';
+import { globSync, statSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { meshopt } from '@gltf-transform/functions';
@@ -10,7 +10,7 @@ import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
 const files = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['public/models/atlas-board.glb', 'public/models/horse-piece.glb'];
+  : globSync('public/models/{,avatars/}*.glb');
 
 await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
 const io = new NodeIO()

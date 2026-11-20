@@ -15,6 +15,8 @@ import { INK, disposeRenderer, noOutline, toon } from './toon.ts';
 import { mergeStatic } from './merge.ts';
 import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
 import { TILE_SKIN } from '../render/skins.ts';
+import { AVATARS } from '../../protocol.ts';
+import { avatarUrl } from './avatar-preview.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 
 // ---------- assets ----------
@@ -23,15 +25,38 @@ const ATLAS_URL = `${import.meta.env.BASE_URL}models/atlas-board.glb`; // built 
 let atlasAsset: GLTF | undefined;
 const PIECE_URL = `${import.meta.env.BASE_URL}models/horse-piece.glb`; // built by tools/blender/horse_piece.py
 let pieceAsset: GLTF | undefined;
+let avatarAssets: Map<string, GLTF> | undefined; // id → model (protocol.ts AVATARS, made by tools/blender/avatar_lowpoly.py)
+const AVATAR_SCALE = 1.5; // avatar height ÷ height of the peak it stands on
 
 export async function preload() {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // models are packed by `npm run models`
-  atlasAsset ??= await loader.loadAsync(ATLAS_URL);
-  pieceAsset ??= await loader.loadAsync(PIECE_URL);
+  [atlasAsset, pieceAsset, avatarAssets] = await Promise.all([
+    atlasAsset ?? loader.loadAsync(ATLAS_URL),
+    pieceAsset ?? loader.loadAsync(PIECE_URL),
+    avatarAssets ?? Promise.all(AVATARS.map(async a => [a.id, await loader.loadAsync(avatarUrl(a.id))] as const)).then(e => new Map(e)),
+  ]);
   await document.fonts?.load('800 64px "Baloo 2"').catch(() => undefined); // labels are drawn on canvases
 }
 
 // ---------- helpers ----------
+
+/** Highest vertex of a mountain range (board space) and its height above the range's foot. */
+function peakOf(range?: THREE.Object3D) {
+  if (!range) return undefined;
+  const v = new THREE.Vector3(), top = new THREE.Vector3(0, -Infinity, 0);
+  let foot = Infinity;
+  range.traverse(o => { // one mesh per material
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const pos = m.geometry.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); // getX/Y/Z: works on compressed models
+      if (v.y > top.y) top.copy(v);
+      foot = Math.min(foot, v.y);
+    }
+  });
+  return { top, height: top.y - foot };
+}
 
 /** World units: 1 cell = 1 unit, board centered on the origin. */
 const W = (px: number) => px / CELL - 7.5;
@@ -102,6 +127,7 @@ export class Board3D implements BoardRenderer {
   private stables: GlowMaterial[][] = []; // per seat: what pulses when it is that seat's turn
   private tileSprites: THREE.Sprite[] = [];
   private dust?: SpiritDust;
+  private tops: (THREE.Vector3 | undefined)[] = []; // per seat: top of its avatar's head (camera fit)
   private merged: THREE.BufferGeometry[] = []; // atlas meshes merged per material (disposed on rebuild)
   private flag?: { geo: THREE.BufferGeometry; pos: THREE.BufferAttribute; rest: Float32Array; left: number; width: number; s: number; o: THREE.Vector3 };
   private wave = 0; // flag wave phase
@@ -175,7 +201,9 @@ export class Board3D implements BoardRenderer {
     this.cells.clear();
     this.tileSprites = [];
     this.flag = undefined;
+    this.tops = [];
     this.drawBoard(s);
+    this.fit(); // avatars are taller than the board
     this.horses = s.horses.map(h => this.makeHorse(seatOf(s, h.owner), h.id));
     const fewer = matchMedia('(pointer: coarse)').matches; // phones: half the particles
     this.dust = new SpiritDust(s.horses.map(h => new THREE.Color(seatColor(seatOf(s, h.owner)).main)), fewer ? 12 : 24);
@@ -334,6 +362,7 @@ export class Board3D implements BoardRenderer {
     const target = this.controls.target;
     const dir = this.camera.position.clone().sub(target).normalize();
     const corners = [-8.3, 8.3].flatMap(x => [-8.3, 8.3].map(z => new THREE.Vector3(x, 0, z)));
+    for (const top of this.tops) if (top) corners.push(top.clone().setY(top.y + 0.3));
     const fits = (d: number) => {
       this.camera.position.copy(target).addScaledVector(dir, d);
       this.camera.lookAt(target);
@@ -473,6 +502,8 @@ export class Board3D implements BoardRenderer {
       }
       return -1;
     };
+    board.updateMatrixWorld(true);
+    const peaks = [0, 1, 2, 3].map(seat => peakOf(board.getObjectByName(`stable_${seat}_mountains`)));
     board.traverse(o => Object.assign(o.userData, { seat: owner(o), cast: /mountains|foothills|hub_/.test(o.name) }));
     // ~700 meshes → one per material and seat. Kept apart: whatever the game changes on its own (see CLAUDE.md).
     const KEEP = /^(cell_\d+|stable_\d_(floor|glow|rim)|hub_flag)$/;
@@ -499,6 +530,7 @@ export class Board3D implements BoardRenderer {
         this.cells.set(+cell[1], m);
       }
     });
+    for (const p of this.s.players) if (peaks[p.seat]) this.placeAvatar(p.seat, p.avatar, peaks[p.seat]!, stables[p.seat]);
     this.stables = stables;
     this.world.add(board);
     const cloth = board.getObjectByName('hub_flag') as THREE.Mesh | undefined;
@@ -513,6 +545,27 @@ export class Board3D implements BoardRenderer {
       const left = Math.min(...xs);
       this.flag = { geo, pos, rest, left, width: Math.max(...xs) - left, s, o };
     }
+  }
+
+  /** The seat's avatar on its highest peak, AVATAR_SCALE × as tall as that peak, facing the centre. Glows with the stable on its turn. */
+  private placeAvatar(seat: number, avatar: string | undefined, peak: { top: THREE.Vector3; height: number }, glow: GlowMaterial[]) {
+    const model = (avatarAssets!.get(avatar!) ?? avatarAssets!.get(AVATARS[seat].id)!).scene.clone(); // no avatar: older game
+    const box = new THREE.Box3().setFromObject(model);
+    const tall = peak.height * AVATAR_SCALE;
+    const k = tall / (box.max.y - box.min.y);
+    model.scale.multiplyScalar(k);
+    model.position.set(peak.top.x, peak.top.y - box.min.y * k, peak.top.z);
+    model.rotation.y = Math.atan2(-peak.top.x, -peak.top.z); // the model looks along +Z
+    model.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.castShadow = true;
+      const mat = noOutline((m.material as GlowMaterial).clone());
+      glow.push(Object.assign(mat, { emissive: new THREE.Color(seatColor(seat).main).multiplyScalar(0.35), emissiveIntensity: 0 })); // a tint, not a dye
+      m.material = mat;
+    });
+    this.world.add(model);
+    this.tops[seat] = peak.top.clone().setY(peak.top.y + tall);
   }
 
   /** Tinh bàn chess piece: pedestal + floating spirit head (two glTF nodes), mane and pedestal in the seat color. */

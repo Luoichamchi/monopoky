@@ -1,9 +1,9 @@
-// App shell: menu → (offline game | online lobby → online game).
+// App shell: game mode → avatar → (offline game vs 3 bots | online lobby → online game).
 import './style.css';
 import type { Socket } from 'socket.io-client';
 import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
-import { BOT_LABEL, BOT_NAMES, type RoomView, type SeatKind } from '../protocol.ts';
+import { assignAvatars, AVATARS, BOT_LABEL, BOT_NAMES, isAvatar, type RoomView, type SeatKind } from '../protocol.ts';
 import { GameSession, type Update } from '../session.ts';
 import { think } from './bots.ts';
 import { ask, connect } from './net.ts';
@@ -22,9 +22,11 @@ const kindLabel = (k: SeatKind) => (k === 'human' ? 'Người chơi' : k === 'of
 interface Prefs {
   name: string;
   variant: string;
-  seats: SeatKind[];
+  avatar: string;
 }
-const prefs: Prefs = store('ccn.prefs', { name: '', variant: 'party', seats: ['human', 'hard', 'normal', 'expert'] });
+const prefs: Prefs = { name: '', variant: 'classic', avatar: AVATARS[0].id, ...store<Partial<Prefs>>('ccn.prefs', {}) };
+if (!isAvatar(prefs.avatar)) prefs.avatar = AVATARS[0].id;
+const LEVELS: BotLevel[] = ['easy', 'normal', 'hard', 'expert'];
 const persist = () => save('ccn.prefs', prefs);
 
 let cleanup: () => void = () => {};
@@ -55,7 +57,7 @@ const variantPicker = (current: string, disabled = false) =>
       <b>${v.id === 'party' ? '🎉 ' : '🐎 '}${esc(v.name)}</b><small>${esc(v.desc)}</small></label>`,
   ).join('')}</div>`;
 
-// ---------------- menu ----------------
+// ---------------- menu: 1. game mode ----------------
 
 function menu() {
   screen(() => {
@@ -64,29 +66,15 @@ function menu() {
         <div class="menu-side">
           <h1 class="logo"><span>CỜ</span><span>CÁ</span><span>NGỰA</span></h1>
           <p class="tagline">Phiên bản anime — đổ xúc xắc, đá ngựa, phá đảo!</p>
-          <section class="card">
-            <h3>Chơi online với bạn bè</h3>
-            <div class="row">
-              <button class="btn" id="create">Tạo phòng</button>
-              <input id="code" maxlength="4" placeholder="MÃ PHÒNG" class="code" aria-label="Mã phòng">
-              <button class="btn ghost" id="join">Vào</button>
-            </div>
-          </section>
         </div>
         <section class="card">
-          <label class="field">Tên của bạn <input id="name" maxlength="16" placeholder="Sakura" value="${esc(prefs.name)}"></label>
-          <h3 class="h-row">Chế độ
-            <span class="seg" role="radiogroup" aria-label="Giao diện" title="Đặt cả bản đồ và xúc xắc. Trong ván bấm 🎨 để chỉnh riêng từng phần.">${(['2d', '3d'] as const)
-              .map(k => `<label><input type="radio" name="look" value="${k}" ${look.board === k && look.dice === k ? 'checked' : ''}>${k.toUpperCase()}</label>`)
+          <h3 class="h-row">Chọn kiểu chơi
+            <span class="seg" role="radiogroup" aria-label="Giao diện" title="Bản đồ 2D hoặc 3D. Trong ván bấm ⚙ để đổi.">${(['2d', '3d'] as const)
+              .map(k => `<label><input type="radio" name="look" value="${k}" ${look.board === k ? 'checked' : ''}>${k.toUpperCase()}</label>`)
               .join('')}</span></h3>${variantPicker(prefs.variant)}
-          <h3>Ghế ngồi</h3>
-          <div class="seats">${seatEditor(prefs.seats, () => true)}</div>
-          <p class="err" id="err" hidden></p>
-          <button class="btn big" id="offline">▶ Chơi ngay</button>
+          <button class="btn big" id="next">Tiếp: chọn avatar →</button>
         </section>
       </div></main>`;
-    const $ = <T extends HTMLElement>(sel: string) => app.querySelector<T>(sel)!;
-    $<HTMLInputElement>('#name').oninput = e => ((prefs.name = (e.target as HTMLInputElement).value), persist());
     app.querySelectorAll<HTMLInputElement>('input[name=variant]').forEach(r =>
       (r.onchange = () => {
         prefs.variant = r.value;
@@ -94,40 +82,85 @@ function menu() {
         app.querySelectorAll('.variant').forEach(l => l.classList.toggle('on', l.contains(r)));
       }),
     );
-    app.querySelectorAll<HTMLSelectElement>('select[data-seat]').forEach(sel =>
-      (sel.onchange = () => ((prefs.seats[+sel.dataset.seat!] = sel.value as SeatKind), persist())),
-    );
     app.querySelectorAll<HTMLInputElement>('input[name=look]').forEach(r =>
       (r.onchange = () => {
-        look.board = look.dice = r.value as TemplateKind; // preset; mix-and-match lives in the in-game 🎨 panel
+        look.board = r.value as TemplateKind;
         saveLook();
       }),
     );
-    $('#offline').onclick = () => {
-      if (prefs.seats.filter(k => k !== 'off').length < 2) return void Object.assign($('#err'), { hidden: false, textContent: 'Cần ít nhất 2 ghế.' });
-      offline();
-    };
-    $('#create').onclick = () => online();
-    $('#join').onclick = () => online($<HTMLInputElement>('#code').value.trim().toUpperCase());
+    app.querySelector<HTMLButtonElement>('#next')!.onclick = () => pickAvatar();
     return () => {};
   });
 }
 
-// ---------------- offline ----------------
+// ---------------- menu: 2. avatar (then play offline, or online) ----------------
+
+/** `joinId`: opened from a room link, the only way on is that room. */
+function pickAvatar(joinId?: string) {
+  screen(() => {
+    app.innerHTML = `
+      <main class="menu"><section class="card avatar-pick">
+        <h3>Chọn avatar</h3>
+        <div class="avatar-stage" aria-hidden="true"></div>
+        <div class="avatar-list" role="radiogroup" aria-label="Avatar">${AVATARS.map(a => `
+          <label class="variant avatar-opt ${a.id === prefs.avatar ? 'on' : ''}">
+            <input type="radio" name="avatar" value="${a.id}" ${a.id === prefs.avatar ? 'checked' : ''}><b>${a.name}</b><small>${a.title}</small>
+          </label>`).join('')}</div>
+        <label class="field">Tên của bạn <input id="name" maxlength="16" placeholder="Sakura" value="${esc(prefs.name)}"></label>
+        ${joinId
+          ? `<button class="btn big" id="join">▶ Vào phòng ${esc(joinId)}</button>`
+          : `<button class="btn big" id="offline">▶ Chơi với máy</button>
+        <h3>Hoặc chơi online với bạn bè</h3>
+        <div class="row">
+          <button class="btn" id="create">Tạo phòng</button>
+          <input id="code" maxlength="4" placeholder="MÃ PHÒNG" class="code" aria-label="Mã phòng">
+          <button class="btn ghost" id="join">Vào</button>
+        </div>`}
+        <div class="row"><button class="btn ghost" id="back">← ${joinId ? 'Menu' : 'Kiểu chơi'}</button></div>
+      </section></main>`;
+    const $ = <T extends HTMLElement>(sel: string) => app.querySelector<T>(sel)!;
+    let preview: { show(id: string): unknown; destroy(): void } | undefined;
+    let gone = false;
+    import('./render3d/avatar-preview.ts')
+      .then(({ AvatarPreview }) => {
+        if (gone) return;
+        preview = new AvatarPreview($('.avatar-stage'));
+        preview.show(prefs.avatar);
+      })
+      .catch(e => console.warn('avatar preview unavailable (WebGL?)', e)); // the list still works
+    app.querySelectorAll<HTMLInputElement>('input[name=avatar]').forEach(r =>
+      (r.onchange = () => {
+        prefs.avatar = r.value;
+        persist();
+        app.querySelectorAll('.avatar-opt').forEach(l => l.classList.toggle('on', l.contains(r)));
+        preview?.show(r.value);
+      }),
+    );
+    $<HTMLInputElement>('#name').oninput = e => ((prefs.name = (e.target as HTMLInputElement).value), persist());
+    if (joinId) $('#join').onclick = () => online(joinId);
+    else {
+      $('#offline').onclick = () => offline();
+      $('#create').onclick = () => online();
+      $('#join').onclick = () => online($<HTMLInputElement>('#code').value.trim().toUpperCase());
+    }
+    $('#back').onclick = () => (history.replaceState(null, '', location.pathname), menu());
+    return () => ((gone = true), preview?.destroy());
+  });
+}
+
+// ---------------- offline: you + 3 bots, random levels and avatars ----------------
 
 function offline() {
   screen(() => {
-    let humans = 0;
-    const players: PlayerConfig[] = [];
-    prefs.seats.forEach((k, seat) => {
-      if (k === 'off') return;
-      if (k === 'human') players.push({ seat, name: humans++ === 0 ? prefs.name || 'Bạn' : `Người chơi ${humans}` });
-      else players.push({ seat, bot: k as BotLevel, name: `${BOT_NAMES[seat]}` });
-    });
+    const pick = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+    const players: PlayerConfig[] = assignAvatars([
+      { seat: 0, name: prefs.name || 'Bạn', avatar: prefs.avatar },
+      ...[1, 2, 3].map(seat => ({ seat, bot: pick(LEVELS), name: BOT_NAMES[seat] })),
+    ]);
     let session: GameSession;
     const view = new GameScreen(app, {
       send: a => session.act(session.state.turn, a),
-      controls: () => true, // hot-seat: every human seat plays from this screen
+      controls: () => true, // only the human seat ever waits for input
       leave: () => menu(),
       restart: () => offline(),
     });
@@ -150,13 +183,14 @@ function online(joinId?: string) {
 
     const enter = async () => {
       const res = await (joinId
-        ? ask<{ id?: string; error?: string }>(sock, 'join', { id: joinId, name })
-        : ask<{ id?: string; error?: string }>(sock, 'create', { name }));
+        ? ask<{ id?: string; error?: string }>(sock, 'join', { id: joinId, name, avatar: prefs.avatar })
+        : ask<{ id?: string; error?: string }>(sock, 'create', { name, avatar: prefs.avatar, variant: prefs.variant }));
       if (res.error || !res.id) {
         alert(res.error ?? 'Lỗi kết nối');
         return menu();
       }
       joinId = res.id; // reconnects re-join the same room
+      try { sessionStorage.setItem('ccn.room', res.id); } catch {} // F5 in this tab goes straight back in
       history.replaceState(null, '', `#room=${res.id}`);
     };
     sock.on('connect', enter);
@@ -195,7 +229,8 @@ function lobby(sock: Socket, r: RoomView) {
     const s = r.seats[i];
     if (s.kind !== 'human') return '';
     if (!s.name) return '<i>đang chờ…</i>';
-    return `${esc(s.name)} ${s.connected ? '🟢' : '⚪'} ${i === r.mySeat ? '(bạn)' : ''}`;
+    const avatar = AVATARS.find(a => a.id === s.avatar)?.name ?? '';
+    return `${esc(s.name)} ${avatar && `· ${avatar}`} ${s.connected ? '🟢' : '⚪'} ${i === r.mySeat ? '(bạn)' : ''}`;
   };
   app.innerHTML = `
     <main class="menu"><div class="menu-grid">
@@ -245,4 +280,7 @@ document.addEventListener('pointerdown', e => {
 });
 
 const hashRoom = location.hash.match(/room=([A-Z]{4})/)?.[1];
-hashRoom ? online(hashRoom) : menu();
+const rejoin = (() => { try { return sessionStorage.getItem('ccn.room'); } catch { return null; } })();
+if (!hashRoom) menu();
+else if (hashRoom === rejoin) online(hashRoom); // reload: we already have a seat there
+else pickAvatar(hashRoom); // a friend's link: pick an avatar first

@@ -2,14 +2,8 @@
 // Purely visual: it only reads where the horses are and whether they are pickable.
 import * as THREE from 'three';
 import { noOutline } from './toon.ts';
+import { NOISE } from './noise.ts';
 
-const NOISE = /* glsl */ `
-  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float noise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
-  }`;
 
 /** Funnel-shaped strip: starts wide at the pedestal top, spirals up and hugs the chest. Model units (piece ≈ 1.3 tall). */
 function ribbonGeometry(turns: number, from: number, to: number) {

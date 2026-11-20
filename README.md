@@ -2,7 +2,7 @@
 
 Cờ cá ngựa trên web, phong cách anime. Chơi offline với bot hoặc bạn bè trên cùng máy, hoặc chơi online qua link phòng.
 
-- **2 chế độ:** *Cổ điển* (luật truyền thống) và *Lễ hội hỗn loạn* (ô đặc biệt + thẻ bài)
+- **2 chế độ:** *Truyền thống* và *Lễ hội hỗn loạn* (ô đặc biệt + thẻ bài)
 - **Bot 4 cấp:** Dễ / Thường / Khó / Siêu cấp. Độ mạnh được kiểm chứng bằng cách cho bot tự đấu (`npm run bench`)
 - **Online:** server giữ toàn bộ luật (client chỉ gửi hành động), vào lại phòng sau khi F5, bot tự chơi thay người rớt mạng quá 20s
 - **Đồ hoạ:** bàn cờ SVG, hiệu ứng [anime.js v4](https://github.com/juliangarnier/anime) (nhảy squash & stretch, chữ "BAM!" kiểu manga, speed lines, nổ bom, cổng dịch chuyển, banner cut-in, pháo giấy)
@@ -95,7 +95,7 @@ src/
 
 **Template đồ hoạ:** bản đồ và xúc xắc là 2 phần độc lập, ghép tùy ý (2D/3D × 2D/3D). Ở menu, nút "2D | 3D" đặt nhanh cả hai. Trong ván, bấm 🎨 để đổi riêng từng phần ngay lúc đang chơi: lệnh đổi được xếp hàng sau hoạt ảnh đang chạy, bản cũ được giải phóng hoàn toàn (kể cả WebGL context), bản mới vẽ lại từ trạng thái ván. Lựa chọn lưu trong trình duyệt (`ccn.look`) và chỉ ảnh hưởng người chơi đó, kể cả khi chơi online. Muốn thêm template mới (ví dụ PixiJS) thì implement `BoardRenderer` hoặc `DiceRenderer` trong `render/renderer.ts` và thêm vào `loadBoard`/`loadDice`. Máy không chạy được WebGL thì tự quay về 2D.
 
-**Asset 3D** nằm trong `public/models/` (credit và giấy phép ở `public/models/LICENSE.md`). Sau mỗi lần xuất lại một file `.glb` từ Blender, chạy `npm run models` để nén nó (khoảng 3–6 lần nhỏ hơn, hình không đổi). Bàn: `atlas-board.glb` (từ `blender/atlas-board.blend`). Quân ngựa: `horse-piece.glb` (dựng bằng `tools/blender/horse_piece.py`); code tô màu theo tên vật liệu `hp_mane`, `hp_base`.
+**Asset 3D** nằm trong `public/models/` (credit và giấy phép ở `public/models/LICENSE.md`). Sau mỗi lần xuất lại một file `.glb` từ Blender, chạy `npm run models` để nén nó (khoảng 3–6 lần nhỏ hơn, hình không đổi). Bàn: `atlas-board.glb` (từ `blender/atlas-board.blend`). Quân ngựa: `horse-piece.glb` (dựng bằng `tools/blender/horse_piece.py`); code tô màu theo tên vật liệu `hp_mane`, `hp_base`. Avatar trên đỉnh núi mỗi góc (bàn 3D): `public/models/avatars/`, làm bằng `tools/blender/avatar_lowpoly.py` (hướng dẫn trong `tools/blender/AVATARS.md`); danh sách avatar ở `AVATARS` trong `src/protocol.ts`. Người chơi chọn avatar ở menu (bước 2, có xem 3D), bot và người chọn trùng được chia avatar còn trống.
 
 **Nâng cấp đồ hoạ:** đổi màu/phong cách trong `theme.ts` và `style.css`; thay quân ngựa trong `BoardView.drawHorse()` (ví dụ dùng `<image>` sprite chibi); thêm hiệu ứng vào `fx.ts`. Nếu hoạt ảnh dài/ngắn hơn đáng kể thì chỉnh `TIMING` trong `session.ts` để bot chờ đúng nhịp.
 

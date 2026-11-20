@@ -9,7 +9,7 @@ import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
 import { GameSession, type Update } from '../session.ts';
 import { think } from './bots.ts';
-import { BOT_NAMES, type RoomView, type SeatKind } from '../protocol.ts';
+import { assignAvatars, BOT_NAMES, isAvatar, type RoomView, type SeatKind } from '../protocol.ts';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const DIST = resolve(import.meta.dirname, '../../dist');
@@ -49,6 +49,7 @@ const io = new Server(http);
 interface Seat {
   kind: SeatKind;
   name?: string;
+  avatar?: string;
   token?: string; // secret per browser, identifies a human across reconnects
   connected?: boolean;
   dropTimer?: ReturnType<typeof setTimeout>;
@@ -83,7 +84,7 @@ function view(r: Room, token: string): RoomView {
     started: !!r.session,
     isHost: token === r.hostToken,
     mySeat: r.seats.findIndex(s => s.token === token),
-    seats: r.seats.map(s => ({ kind: s.kind, name: s.name, connected: s.connected })),
+    seats: r.seats.map(s => ({ kind: s.kind, name: s.name, avatar: s.avatar, connected: s.connected })),
     playerOf: r.playerOf,
   };
 }
@@ -97,9 +98,10 @@ function startGame(r: Room) {
   r.playerOf = r.seats.map((s, seat) => {
     if (s.kind === 'off' || (s.kind === 'human' && !s.token)) return -1;
     const bot = s.kind === 'human' ? undefined : s.kind;
-    players.push({ seat, bot, name: bot ? `${BOT_NAMES[seat]} (${bot})` : s.name! });
+    players.push({ seat, bot, name: bot ? `${BOT_NAMES[seat]} (${bot})` : s.name!, avatar: s.avatar });
     return players.length - 1;
   });
+  assignAvatars(players);
   if (players.length < 2) return false;
   r.session = new GameSession(
     r.variant,
@@ -121,7 +123,7 @@ io.on('connection', (socket: Socket) => {
   if (!isToken(token)) return void socket.disconnect();
   socket.data.token = token;
 
-  const enter = (r: Room, name: string) => {
+  const enter = (r: Room, name: string, avatar: unknown) => {
     room = r;
     r.emptySince = undefined;
     socket.join(r.id);
@@ -135,6 +137,7 @@ io.on('connection', (socket: Socket) => {
       const n = name || `Người chơi ${i + 1}`;
       // two players with the same name are indistinguishable in the sidebar
       seat.name = r.seats.some(s => s !== seat && s.name === n) ? `${n.slice(0, 13)} ${i + 1}` : n;
+      if (isAvatar(avatar) && !r.seats.some(s => s !== seat && s.avatar === avatar)) seat.avatar = avatar; // taken: one is dealt at start
       seat.connected = true;
       clearTimeout(seat.dropTimer);
       const p = r.playerOf[r.seats.indexOf(seat)];
@@ -150,12 +153,12 @@ io.on('connection', (socket: Socket) => {
     const r: Room = {
       id: newId(),
       hostToken: token,
-      variant: 'classic',
+      variant: VARIANTS.some(v => v.id === msg?.variant) ? msg.variant : 'classic',
       seats: [{ kind: 'human', token }, { kind: 'human' }, { kind: 'hard' }, { kind: 'off' }],
       playerOf: [-1, -1, -1, -1],
     };
     rooms.set(r.id, r);
-    enter(r, clean(msg?.name));
+    enter(r, clean(msg?.name), msg?.avatar);
     ack({ id: r.id });
   });
 
@@ -163,7 +166,7 @@ io.on('connection', (socket: Socket) => {
     if (typeof ack !== 'function') return;
     const r = rooms.get(String(msg?.id ?? '').toUpperCase());
     if (!r) return ack({ error: 'Không tìm thấy phòng' });
-    enter(r, clean(msg?.name));
+    enter(r, clean(msg?.name), msg?.avatar);
     ack({ id: r.id });
   });
 
@@ -175,7 +178,7 @@ io.on('connection', (socket: Socket) => {
         const seat = room!.seats[i];
         if (seat.token === room!.hostToken) return; // host keeps their seat
         if (k === 'human' || k === 'off' || LEVELS.includes(k as BotLevel)) {
-          if (k !== 'human') Object.assign(seat, { token: undefined, name: undefined, connected: false });
+          if (k !== 'human') Object.assign(seat, { token: undefined, name: undefined, avatar: undefined, connected: false });
           seat.kind = k as SeatKind;
         }
       });

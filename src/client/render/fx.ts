@@ -121,20 +121,4 @@ export function confetti(host: HTMLElement, colors: string[]) {
 }
 
 /** Anime "cut-in" banner sliding across the screen. */
-export function cutIn(host: HTMLElement, text: string, color: string) {
-  const b = document.createElement('div');
-  b.className = 'cutin';
-  b.style.setProperty('--c', color);
-  b.innerHTML = `<span>${text}</span>`;
-  host.appendChild(b);
-  const span = b.firstElementChild!;
-  return done(
-    createTimeline({ onComplete: remove(b) })
-      .add(b, { scaleY: [0, 1], opacity: [0, 1], duration: 180, ease: 'outQuad' })
-      .add(span, { x: ['-60vw', '0vw'], duration: 320, ease: 'outBack(1.2)' }, 0)
-      .add(span, { x: '60vw', duration: 260, ease: 'inQuad' }, '+=380')
-      .add(b, { scaleY: 0, opacity: 0, duration: 160 }, '-=120'),
-  );
-}
-
 export { animate, createTimeline, done, stagger, utils };

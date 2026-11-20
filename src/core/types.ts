@@ -8,6 +8,7 @@ export interface PlayerConfig {
   name: string;
   seat: number; // 0..3, board corner (clockwise from top-left)
   bot?: BotLevel;
+  avatar?: string; // look only (protocol.ts AVATARS): the rules never read it
 }
 
 export interface Player extends PlayerConfig {

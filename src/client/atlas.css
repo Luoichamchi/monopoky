@@ -140,11 +140,6 @@
 :scope .modal .btn { background: #dbc18c; border: 1px solid #ebd3a3; color: #232532; text-shadow: none; box-shadow: none; }
 :scope .modal .seg { background: #171e30; border: 1px solid #887b60; box-shadow: none; }
 :scope .modal .seg label:has(input:checked) { background: #d8bd89; color: #242635; }
-:scope .cutin {
-  inset: auto auto 18px 50%; width: max-content; max-width: 95vw; height: auto; padding: 9px 22px;
-  translate: -50% 0; transform: none; background: #1c2437f5; border: 1px solid var(--gold); border-radius: 6px;
-}
-:scope .cutin span { font: 600 19px/1.2 var(--display); color: var(--cream); letter-spacing: 0; -webkit-text-stroke: 0; text-shadow: none; }
 @media (max-width: 760px) {
   :scope .topbar { min-height: 52px; padding: 0 12px; gap: 5px; }
   :scope .arena-brand { font-size: 19px; margin-left: 0; padding-left: 10px; }

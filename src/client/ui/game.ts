@@ -12,7 +12,8 @@ import { music } from '../audio/music.ts';
 import { sfx, type Sfx } from '../audio/sfx.ts';
 import { look, saveLook, type Look } from '../look.ts';
 import { loadBoard, loadDice, type BoardRenderer, type DiceRenderer, type TemplateKind } from '../render/renderer.ts';
-import { confetti, cutIn } from '../render/fx.ts';
+import { confetti } from '../render/fx.ts';
+import { SmokeCall } from '../render3d/smoke-call.ts';
 import { chargeOf } from '../dice/motion.ts';
 import { CARD_SKIN, TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
@@ -34,6 +35,7 @@ export class GameScreen {
   private dice!: DiceRenderer;
   private shown: Partial<Look> = {}; // templates currently on screen
   private status: HTMLElement;
+  private smoke?: SmokeCall; // spirit smoke behind the turn notice
   private panels: HTMLElement[] = [];
   private s?: GameState;
   private tasks: (() => Promise<void>)[] = []; // updates and template swaps run strictly in order
@@ -54,13 +56,11 @@ export class GameScreen {
     this.el.className = 'game';
     this.el.innerHTML = `
       <header class="topbar">
-        <button class="btn ghost" data-leave aria-label="Về menu">${icon('back')}<span class="lbl"> Menu</span></button>
+        <button class="btn ghost icon" data-leave title="Về menu" aria-label="Về menu">${icon('back')}</button>
         <div class="arena-brand arena-only">${icon('star')} Thiên Mã</div>
         <div class="status" aria-live="polite"></div>
-        <button class="btn ghost icon" data-sfx></button>
-        <button class="btn ghost icon" data-music></button>
-        <button class="btn ghost icon" data-look title="Giao diện" aria-label="Giao diện">${icon('layers')}</button>
-        <button class="btn ghost" data-help aria-label="Luật chơi">${icon('book')}<span class="lbl"> Luật</span></button>
+        <button class="btn ghost icon" data-settings title="Cài đặt" aria-label="Cài đặt">${icon('gear')}</button>
+        <button class="btn ghost icon" data-help title="Luật chơi" aria-label="Luật chơi">${icon('help')}</button>
       </header>
       <div class="table"><div class="grid">
         <div class="arena-stage">
@@ -74,6 +74,7 @@ export class GameScreen {
               <button class="roll-button arena-only" data-roll disabled>Đổ xúc xắc <kbd>Space</kbd></button>
               <button class="btn" data-pass hidden>Bỏ lượt</button>
             </div>
+            <div class="hand" aria-label="Thẻ bài của người đang tới lượt"></div>
           </div>
           <section class="roster">
             <header class="roster-title arena-only"><h2>Kỵ sĩ</h2><span data-round></span></header>
@@ -82,18 +83,25 @@ export class GameScreen {
           </section>
         </div>
       </div></div>
+      <div class="turn-call" role="status" hidden><canvas class="call-smoke" aria-hidden="true"></canvas><span class="call-box"></span></div>
       <div class="overlay" hidden></div>`;
     host.appendChild(this.el);
     this.status = this.el.querySelector('.status')!;
+    try {
+      this.smoke = new SmokeCall(this.el.querySelector('.call-smoke')!);
+    } catch (e) {
+      console.warn('turn smoke unavailable', e); // the notice still shows, without smoke
+    }
     this.setLook({ ...look }); // first task: load the chosen templates before any update is drawn
     this.panels = [0, 1, 2, 3].map(i => this.el.querySelector<HTMLElement>(`.s${i}`)!);
     this.el.querySelector<HTMLButtonElement>('[data-leave]')!.onclick = () => conn.leave();
     this.el.querySelector<HTMLButtonElement>('[data-help]')!.onclick = () => this.showHelp();
-    this.el.querySelector<HTMLButtonElement>('[data-look]')!.onclick = () => this.showLook();
+    this.el.querySelector<HTMLButtonElement>('[data-settings]')!.onclick = () => this.showSettings();
     this.el.querySelector<HTMLButtonElement>('[data-pass]')!.onclick = () => this.send({ type: 'pass' });
     this.el.querySelector<HTMLButtonElement>('[data-roll]')!.onclick = () => this.canRoll && this.send({ type: 'roll' });
     addEventListener('keydown', this.keyHandler);
-    this.setupSound();
+    unlock(); // audio may only start after a user gesture; the menu click that opened this screen usually counts
+    music.play(true);
   }
 
   destroy() {
@@ -104,27 +112,8 @@ export class GameScreen {
     this.tasks = [];
     this.board?.destroy();
     this.dice?.destroy();
+    this.smoke?.destroy();
     this.el.remove();
-  }
-
-  private setupSound() {
-    const sfxBtn = this.el.querySelector<HTMLButtonElement>('[data-sfx]')!;
-    const musicBtn = this.el.querySelector<HTMLButtonElement>('[data-music]')!;
-    const paint = () => {
-      sfxBtn.innerHTML = icon(sfx.enabled ? 'sound' : 'mute');
-      sfxBtn.title = sfx.enabled ? 'Tắt hiệu ứng âm thanh' : 'Bật hiệu ứng âm thanh';
-      musicBtn.innerHTML = icon('music');
-      musicBtn.style.opacity = music.enabled ? '1' : '.45';
-      musicBtn.title = music.enabled ? 'Tắt nhạc nền' : 'Bật nhạc nền';
-      sfxBtn.setAttribute('aria-label', sfxBtn.title);
-      musicBtn.setAttribute('aria-label', musicBtn.title);
-    };
-    sfxBtn.onclick = () => (sfx.setEnabled(!sfx.enabled), paint());
-    musicBtn.onclick = () => (music.setEnabled(!music.enabled), paint());
-    paint();
-    // audio may only start after a user gesture; the menu click that opened this screen usually counts
-    unlock();
-    music.play(true);
   }
 
   update(u: Update) {
@@ -160,6 +149,7 @@ export class GameScreen {
       this.board.build(u.state);
       this.s = u.state;
       this.renderPanels();
+      if (u.state.phase !== 'over') this.announce(u.state.turn); // rejoining mid-turn: no 'turn' event comes
     }
     this.waiting = false;
     this.lockInput();
@@ -185,7 +175,7 @@ export class GameScreen {
       this.el.classList.toggle('full-board', !!this.board.fullTable);
       const layered = !this.board.fullTable;
       this.el.dataset.theme = layered ? 'atlas' : '3d';
-      const anchor = this.el.querySelector(layered ? '.roll-well' : '[data-sfx]')!;
+      const anchor = this.el.querySelector(layered ? '.roll-well' : '[data-settings]')!;
       anchor.before(this.status);
       if (this.s) {
         this.board.build(this.s);
@@ -289,12 +279,10 @@ export class GameScreen {
         this.board.setTurn(seatOf(s, e.player));
         this.say(`Lượt của <b>${this.name(e.player)}</b>`);
         this.renderPanels();
-        if (this.conn.controls(e.player) && !s.players[e.player].bot) {
-          sfx.play('turn');
-          await cutIn(this.el, `Lượt của ${this.name(e.player)}!`, this.color(e.player).main);
-        }
+        if (this.announce(e.player)) sfx.play('turn');
         break;
       case 'win':
+        this.el.querySelector<HTMLElement>('.turn-call')!.hidden = true;
         this.say(`🏆 ${this.name(e.player)} chiến thắng!`);
         music.play(false);
         sfx.play('win');
@@ -342,7 +330,7 @@ export class GameScreen {
       this.canRoll = true;
       this.el.querySelector<HTMLButtonElement>('[data-roll]')!.disabled = false;
       this.dice.setReady(true, this.color(s.turn).main);
-      this.say(`Lượt của <b>${this.name(s.turn)}</b> — giữ xúc xắc (hoặc phím Space) để lắc, thả hoặc vuốt để quăng`);
+      this.say(`Lượt của <b>${this.name(s.turn)}</b>`);
     } else {
       const moves = acts.filter(a => a.type === 'move') as Extract<Action, { type: 'move' }>[];
       if (acts.length === 1 && moves.length === 1) {
@@ -358,6 +346,22 @@ export class GameScreen {
       if (moves.length) this.say(`${this.name(s.turn)} đổ <b>${s.dice}</b> — chọn ngựa để đi`);
     }
     this.renderPanels();
+  }
+
+  /** Bottom notice of whose turn it is. Stays up the whole turn (the player may not have rolled yet). True if it's ours. */
+  private announce(p: number) {
+    const s = this.s!, call = this.el.querySelector<HTMLElement>('.turn-call')!;
+    const mine = this.conn.controls(p) && !s.players[p].bot;
+    const box = call.querySelector<HTMLElement>('.call-box')!;
+    box.innerHTML = mine ? 'Lượt của bạn!' : `Lượt của ${this.name(p)}`;
+    call.style.setProperty('--c', this.color(p).main);
+    call.classList.toggle('mine', mine);
+    call.hidden = false;
+    this.smoke?.show(box, this.color(p).main, mine);
+    call.classList.remove('pop');
+    void call.offsetWidth; // restart the entrance animation
+    call.classList.add('pop');
+    return mine;
   }
 
   private say(html: string) {
@@ -392,23 +396,30 @@ export class GameScreen {
           </div>
           <div class="horse-stats"><span title="Đã xuất chuồng" aria-label="${out} ngựa đã xuất chuồng">${icon('hoof')}${out}/4</span><span title="Đã về đích" aria-label="${home} ngựa đã về đích">${icon('flag')}${home}/4</span></div>
         </div>`;
-      const cardsEl = panel.querySelector('.cards')!;
-      p.cards.forEach(card => {
-        const b = document.createElement('button');
-        b.className = 'card-chip';
-        b.title = `${CARD_INFO[card].name}: ${CARD_INFO[card].desc}`;
-        b.innerHTML = `${CARD_SKIN[card]} <small>${CARD_INFO[card].name}</small>`;
-        const usable = s.turn === i && acts.some(a => a.type === 'card' && a.card === card);
-        b.disabled = !usable;
-        b.classList.toggle('aiming', this.aiming === card);
-        b.onclick = () => {
-          const a = acts.find(x => x.type === 'card' && x.card === card) as Extract<Action, { type: 'card' }>;
-          if (a.target < 0) return this.send(a);
-          this.aiming = this.aiming === card ? undefined : card;
-          this.refreshInput();
-        };
-        cardsEl.appendChild(b);
-      });
+      this.chips(i, acts, panel.querySelector('.cards')!);
+    });
+    const hand = this.el.querySelector<HTMLElement>('.hand')!; // 3D has no panels: the turn's cards sit by the dice
+    hand.innerHTML = '';
+    this.chips(s.turn, acts, hand);
+  }
+
+  private chips(i: number, acts: Action[], into: Element) {
+    const s = this.s!;
+    s.players[i].cards.forEach(card => {
+      const b = document.createElement('button');
+      b.className = 'card-chip';
+      b.title = `${CARD_INFO[card].name}: ${CARD_INFO[card].desc}`;
+      b.innerHTML = `${CARD_SKIN[card]} <small>${CARD_INFO[card].name}</small>`;
+      const usable = s.turn === i && acts.some(a => a.type === 'card' && a.card === card);
+      b.disabled = !usable;
+      b.classList.toggle('aiming', this.aiming === card);
+      b.onclick = () => {
+        const a = acts.find(x => x.type === 'card' && x.card === card) as Extract<Action, { type: 'card' }>;
+        if (a.target < 0) return this.send(a);
+        this.aiming = this.aiming === card ? undefined : card;
+        this.refreshInput();
+      };
+      into.appendChild(b);
     });
   }
 
@@ -430,25 +441,32 @@ export class GameScreen {
     o.querySelector<HTMLButtonElement>('[data-menu]')!.onclick = () => this.conn.leave();
   }
 
-  /** In-game appearance picker: board and dice templates are chosen independently and applied live. */
-  private showLook() {
+  /** Sound and board template (applied live). The dice are always 3D for now (look.ts). */
+  private showSettings() {
     const o = this.el.querySelector<HTMLElement>('.overlay')!;
-    const seg = (name: 'board' | 'dice', label: string) => `
+    const seg = (name: 'board', label: string) => `
       <div class="look-row"><b>${label}</b><span class="seg" role="radiogroup" aria-label="${label}">${(['2d', '3d'] as TemplateKind[])
         .map(k => `<label><input type="radio" name="${name}" value="${k}" ${look[name] === k ? 'checked' : ''}>${k.toUpperCase()}</label>`)
+        .join('')}</span></div>`;
+    const toggle = (name: 'sfx' | 'music', label: string, on: boolean) => `
+      <div class="look-row"><b>${label}</b><span class="seg" role="radiogroup" aria-label="${label}">${[[true, 'Bật'], [false, 'Tắt']]
+        .map(([v, t]) => `<label><input type="radio" name="${name}" value="${v ? 1 : 0}" ${on === v ? 'checked' : ''}>${t}</label>`)
         .join('')}</span></div>`;
     o.hidden = false;
     o.innerHTML = `
       <div class="modal look">
-        <h2>🎨 Giao diện</h2>
+        <h2>${icon('gear')} Cài đặt</h2>
+        ${toggle('sfx', 'Hiệu ứng âm thanh', sfx.enabled)}
+        ${toggle('music', 'Nhạc nền', music.enabled)}
         ${seg('board', 'Bản đồ')}
-        ${seg('dice', 'Xúc xắc')}
         <p class="hint">Đổi ngay trong ván, không ảnh hưởng người chơi khác. 3D cần tải thêm lần đầu.</p>
         <div class="row"><button class="btn" data-close>Xong</button></div>
       </div>`;
     o.querySelectorAll<HTMLInputElement>('input[type=radio]').forEach(r =>
       (r.onchange = () => {
-        look[r.name as 'board' | 'dice'] = r.value as TemplateKind;
+        if (r.name === 'sfx') return sfx.setEnabled(r.value === '1');
+        if (r.name === 'music') return music.setEnabled(r.value === '1');
+        look.board = r.value as TemplateKind;
         saveLook();
         this.setLook({ ...look });
       }),
@@ -468,6 +486,7 @@ export class GameScreen {
         <h2>${esc(v.name)}</h2>
         <p>${esc(v.desc)}</p>
         <ul class="rules">
+          <li>Tới lượt: <b>giữ xúc xắc</b> (hoặc phím <kbd>Space</kbd>) để lắc, thả hoặc vuốt để quăng. Rồi bấm ngựa có vòng sáng để đi.</li>
           <li>Đổ <b>${v.exitOn.join(' hoặc ')}</b> để xuất chuồng. Đổ <b>6</b> được đổ thêm lượt.</li>
           <li>Không được nhảy qua ngựa khác. Đi đúng vào ô có ngựa địch = <b>đá</b> nó về chuồng.</li>
           <li>Phải dừng đúng ở <b>cửa chuồng</b> (ô trước hàng số). Từ cửa, đổ <i>n</i> lên thẳng bậc <i>n</i>; trong chuồng muốn lên bậc <i>k+1</i> phải đổ đúng <i>k+1</i>.</li>

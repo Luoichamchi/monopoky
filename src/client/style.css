@@ -96,6 +96,19 @@ button, input, select { font: inherit; color: inherit; }
 .full-board .panel-slot, .full-board .dock { position: relative; z-index: 1; pointer-events: none; }
 .full-board .dock { z-index: 2; } /* a thrown die flies over the player panels */
 .full-board .pcard, .full-board .dock .btn, .full-board .dock .dice, .full-board .dock .dice3d { pointer-events: auto; }
+/* menu step 2: avatar picker with a turntable preview */
+.avatar-pick { width: min(100%, 620px); display: grid; gap: 10px; }
+.avatar-pick h3 { margin: 6px 0 0; }
+.avatar-stage { height: clamp(200px, 38dvh, 380px); border-radius: 16px; overflow: hidden; touch-action: none; cursor: grab; background: radial-gradient(circle at 50% 75%, #4a3a86, #161b36 70%); border: 3px solid var(--ink); }
+.avatar-stage canvas { display: block; width: 100%; height: 100%; }
+.avatar-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; }
+.avatar-opt small { opacity: .8; }
+/* 3D board: no player panels (the avatars stand for the players), the turn's cards sit by the dice */
+.full-board .panel-slot { display: none; }
+.full-board .topbar .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* screen readers only */
+.full-board [data-settings] { margin-left: auto; }
+.hand { display: none; }
+.full-board .hand:not(:empty) { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
 /* 3D board template */
 .board3d { position: relative; width: 100%; height: 100%; touch-action: none; }
 .board3d canvas { display: block; width: 100%; height: 100%; }
@@ -237,12 +250,27 @@ button, input, select { font: inherit; color: inherit; }
 .rules li, .legend li { margin: 4px 0; }
 .legend { list-style: none; padding: 0; }
 .legend .ico { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ink); margin-right: 6px; background: #fff; }
-.cutin {
-  position: fixed; left: 0; right: 0; top: 40%; z-index: 15; pointer-events: none; height: 84px; display: grid; place-items: center; overflow: hidden;
-  background: repeating-linear-gradient(-60deg, var(--c) 0 26px, color-mix(in srgb, var(--c), #fff 25%) 26px 52px);
-  border-block: 5px solid var(--ink); transform: skewY(-4deg);
+.turn-call { /* whose turn: a tilted anime cut-in frame at the bottom, up until the turn passes */
+  position: fixed; left: 50%; bottom: 24px; translate: -50% 0; z-index: 15; pointer-events: none; max-width: 96vw;
+  font-family: var(--sfx); font-size: clamp(.8rem, 2.3vw, 1.2rem); letter-spacing: 1px; white-space: nowrap;
 }
-.cutin span { font-family: var(--sfx); font-size: clamp(2rem, 7vw, 3.4rem); color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 4px 5px 0 var(--ink); letter-spacing: 2px; white-space: nowrap; }
+.turn-call.mine { font-size: clamp(1.2rem, 3.7vw, 1.9rem); }
+@media (max-aspect-ratio: 6/5) { /* portrait: the 3D board sits in the top two thirds, the notice in the gap above it */
+  .full-board .board-slot { bottom: auto; height: 66%; }
+  .turn-call { bottom: auto; top: calc(env(safe-area-inset-top) + 76px); }
+}
+.call-smoke { position: absolute; left: 50%; top: 50%; translate: -50% -50%; pointer-events: none; }
+.call-box {
+  position: relative; z-index: 1; display: inline-block; padding: .16em .95em .24em .75em; transform: skewX(-14deg) rotate(-2deg);
+  background: linear-gradient(100deg, #1d2547, #10162a 70%); border: 3px solid var(--ink); border-radius: 3px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c), transparent 35%), 6px 6px 0 var(--ink);
+  color: var(--c); -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--ink);
+}
+.turn-call.pop { animation: call-in .35s ease-out; }
+.turn-call.mine.pop { animation: call-in .35s ease-out, call-beat 1.4s .35s ease-in-out infinite; }
+@keyframes call-in { from { opacity: 0; transform: translateX(-40px) scale(.85); } }
+@keyframes call-beat { 50% { transform: scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { .turn-call.pop, .turn-call.mine.pop { animation: none; } }
 .confetti { position: fixed; top: 0; width: 10px; height: 16px; z-index: 30; pointer-events: none; border: 2px solid var(--ink); border-radius: 3px; }
 
 /* frozen horse (party mode): icy tint + glow, stays until it thaws */

@@ -7,7 +7,7 @@ export function createGame(variantId: string, players: PlayerConfig[], rng: Rng)
   if (players.length < 2 || players.length > 4) throw new Error('need 2-4 players');
   const s: GameState = {
     variant: getVariant(variantId).id,
-    players: players.map(p => ({ name: p.name, seat: p.seat, bot: p.bot, cards: [] })),
+    players: players.map(p => ({ name: p.name, seat: p.seat, bot: p.bot, avatar: p.avatar, cards: [] })),
     horses: players.flatMap((_, owner) =>
       Array.from({ length: HORSES }, (_, i) => ({ id: owner * HORSES + i, owner, pos: STABLE, shield: 0, frozen: 0 })),
     ),
