@@ -10,6 +10,8 @@
     "start": "node src/server/index.ts",
     "test": "node --test test/*.test.ts",
     "bench": "node test/bench.ts",
+    "duel:lab": "node test/duel-lab.ts",
+    "duel:ab": "node test/duel-ab.ts",
     "models": "node tools/models.ts",
     "typecheck": "tsc --noEmit"
   },

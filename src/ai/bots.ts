@@ -21,7 +21,7 @@ export function chooseAction(s: GameState, level: BotLevel, opts: BotOptions = {
   const rng = opts.rng ?? Math.random;
   const acts = legalActions(s);
   if (acts.length <= 1) return acts[0];
-  if (s.duel) return duelPick(s, acts, level, rng); // cards make the search trees explode: greedy, one play ahead
+  if (s.duel) return duelPick(s, acts, level, rng); // cards make the classic search trees explode
   switch (level) {
     case 'easy': {
       const plain = acts.filter(a => a.type !== 'card');
