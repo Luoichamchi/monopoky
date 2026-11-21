@@ -1,5 +1,5 @@
 // Board topology + small state queries. No rendering coordinates here (see client/render/layout.ts).
-import type { Ctx, GameState, Horse } from './types.ts';
+import type { Ctx, DuelState, GameState, Horse } from './types.ts';
 
 export const TRACK = 52; // shared ring squares
 export const GATE = 50; // last track square before the home column (relative)
@@ -26,8 +26,31 @@ export function cloneState(s: GameState): GameState {
   return {
     ...s,
     players: s.players.map(p => ({ ...p, cards: [...p.cards] })),
-    horses: s.horses.map(h => ({ ...h })),
+    horses: s.horses.map(h => (h.fx ? { ...h, fx: { ...h.fx } } : { ...h })),
     tiles: s.tiles, // tiles never change after setup
+    duel: s.duel && cloneDuel(s.duel),
+  };
+}
+
+function cloneDuel(d: DuelState): DuelState {
+  const rows = (xs: string[][]) => xs.map(x => [...x]);
+  return {
+    ...d,
+    pool: { ...d.pool },
+    order: [...d.order],
+    lists: rows(d.lists),
+    decks: rows(d.decks),
+    discards: rows(d.discards),
+    traps: d.traps.map(x => ({ ...x })),
+    streak: d.streak.map(x => [...x]),
+    prevStreak: [...d.prevStreak],
+    legend: [...d.legend],
+    legendsTaken: [...d.legendsTaken],
+    sealed: [...d.sealed],
+    aegis: [...d.aegis],
+    links: d.links.map(x => ({ ...x })),
+    pending: d.pending && { ...d.pending, picks: d.pending.picks.map(p => ({ card: p.card, t: [...p.t] })), queue: [...d.pending.queue] },
+    known: d.known.map(x => [...x]),
   };
 }
 
@@ -35,6 +58,7 @@ export function cloneState(s: GameState): GameState {
 export function kick(victim: Horse, by: Horse, ctx: Ctx) {
   victim.pos = STABLE;
   victim.shield = 0;
+  victim.fx = undefined;
   ctx.ev.push({ t: 'kick', horse: victim.id, by: by.id });
   if (victim.frozen) ctx.ev.push({ t: 'freeze', horse: victim.id, on: false });
   victim.frozen = 0;

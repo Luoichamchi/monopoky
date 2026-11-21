@@ -1,0 +1,119 @@
+/* Duel mode: cards on the Blender blank (public/art/card-*.webp), hand tray, draft, reactions, casts. */
+.duel-tray[hidden], .duel-draft[hidden], .duel-react[hidden], .duel-cast[hidden] { display: none; }
+
+/* ---------- a card ---------- */
+.dcard {
+  --w: 112px; --k: #e2c892;
+  position: relative; flex: none; width: var(--w); aspect-ratio: 63 / 88; container-type: inline-size;
+  border-radius: calc(var(--w) * .065); background: #151e32 url('/art/card-front.webp') center / 100% 100% no-repeat;
+  color: #f3ebd9; font-family: 'Be Vietnam Pro', system-ui, sans-serif; user-select: none;
+  box-shadow: 0 6px 18px #04071299; transition: transform .16s, box-shadow .16s, opacity .2s, margin .2s;
+}
+.dcard::before { /* kind tint on the frame, the art window stays dark */
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(circle at 50% 37%, transparent 33%, color-mix(in srgb, var(--k) 55%, transparent) 130%); mix-blend-mode: soft-light;
+}
+.dcard::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--k) 65%, transparent); }
+.dcard .pt { position: absolute; left: 16.3%; top: 13.4%; translate: -50% -50%; font: 700 12cqw/1 'Cormorant Garamond', Georgia, serif; color: #fae6b1; text-shadow: 0 0 4px #000; }
+.dcard .art { position: absolute; left: 50%; top: 36.9%; translate: -50% -52%; font-size: 31cqw; line-height: 1; filter: drop-shadow(0 0 7px var(--k)); }
+.dcard .nm { position: absolute; left: 13%; right: 13%; top: 68.8%; translate: 0 -50%; text-align: center; font: 700 8.4cqw/1.1 'Be Vietnam Pro', sans-serif; color: #fae6b1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dcard .ds { position: absolute; left: 9%; right: 9%; top: 75%; bottom: 8%; font-size: 6.3cqw; line-height: 1.28; color: #d6d2c6; overflow: hidden; text-align: center; }
+.dcard .kd { position: absolute; right: 26%; top: 9.6%; font: 700 5.4cqw/1 'Be Vietnam Pro', sans-serif; letter-spacing: .05em; text-transform: uppercase; color: var(--k); }
+.dcard .left { position: absolute; right: -6px; bottom: -6px; padding: 2px 6px; border-radius: 10px; background: #e2c892; color: #232532; font-size: 12px; }
+.dcard.back { background-image: url('/art/card-back.webp'); }
+.dcard.back::before, .dcard.back::after { display: none; }
+.dcard.legend { --k: #f2c14e; box-shadow: 0 0 0 2px #f2c14e, 0 0 24px #f2c14e88; }
+.dcard.can { cursor: pointer; box-shadow: 0 0 0 2px #fae6b1, 0 0 16px color-mix(in srgb, var(--k) 70%, transparent); }
+.dcard.can:hover { filter: brightness(1.1); }
+.dcard.sel { translate: 0 -20px; box-shadow: 0 0 0 3px #fff, 0 0 28px var(--k); z-index: 3; }
+.dcard.gone { opacity: .28; filter: grayscale(1); }
+.dcard.small { --w: 74px; }
+.dcard.big { --w: clamp(120px, 20vw, 190px); }
+
+/* buttons in duel panels: the menu's gold / hairline look */
+:is(.duel-tray, .duel-draft, .react-box, .status) .btn {
+  border: 1px solid #ead8ae; border-radius: 6px; padding: 7px 14px; box-shadow: none; text-shadow: none;
+  background: linear-gradient(#ead4a7, #cbae77); color: #252530; font: 600 13px/1.2 'Be Vietnam Pro', sans-serif;
+}
+:is(.duel-tray, .duel-draft, .react-box, .status) .btn.ghost { border-color: #c6aa775e; background: #ffffff0d; color: #f3ebd9; }
+
+/* ---------- hand tray (bottom centre, both board templates) ---------- */
+.duel-tray { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.duel-tray.floating { position: fixed; left: 50%; bottom: 0; translate: -50% 0; z-index: 6; max-width: 100vw; pointer-events: none; }
+.duel-tray.floating > * { pointer-events: auto; }
+.game:has(.duel-tray.floating:not([hidden])) .turn-call { bottom: 200px; }
+.duel-info {
+  display: flex; gap: 10px; align-items: center; max-width: min(760px, 96vw); padding: 6px 12px; border-radius: 10px;
+  background: #151e32ee; border: 1px solid #c6aa775e; color: #f3ebd9; font: 500 13px/1.35 'Be Vietnam Pro', sans-serif; box-shadow: 0 6px 20px #0008;
+}
+.duel-info > span:not(.duel-hint) { color: #b6bac8; white-space: nowrap; }
+.duel-hint { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.duel-info .btn { padding: 6px 14px; }
+.duel-hand { display: flex; align-items: flex-end; max-width: 100%; padding: 26px 10px 6px; }
+.floating .duel-hand { padding-bottom: 0; margin-bottom: -46px; transition: margin .2s; }
+.floating:hover .duel-hand, .floating .duel-hand:has(.sel) { margin-bottom: 6px; }
+.duel-tray:not(.floating) .duel-info { align-self: stretch; max-width: none; }
+.duel-tray:not(.floating) .dcard { --w: 92px; }
+.duel-tray:not(.floating) .duel-hand { padding-top: 18px; }
+.duel-tray:not(.floating) .duel-hand .dcard + .dcard { margin-left: -16px; }
+.duel-hand .dcard + .dcard { margin-left: -26px; }
+.duel-hand .dcard:hover { translate: 0 -14px; z-index: 2; }
+.duel-hand .dcard.sel:hover { translate: 0 -20px; }
+
+/* ---------- draft ---------- */
+.duel-draft { position: fixed; inset: 0; z-index: 15; overflow: auto; padding: 16px; background: #0a1020f0; color: #f3ebd9; font-family: 'Be Vietnam Pro', system-ui, sans-serif; }
+.draft-box { max-width: 1120px; margin: 0 auto; }
+.draft-box header { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.draft-box h2 { margin: 0; font: 600 34px/1 'Cormorant Garamond', Georgia, serif; }
+.draft-box header p { margin: 0; flex: 1; color: #b6bac8; }
+.draft-lists { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 12px 0; }
+.draft-lists li { padding: 6px 10px; border-radius: 8px; border: 1px solid #ffffff1c; border-left: 4px solid var(--c); background: #ffffff08; font-size: 13px; }
+.draft-lists li.now { box-shadow: 0 0 0 1px var(--c), 0 0 14px color-mix(in srgb, var(--c) 50%, transparent); }
+.draft-lists li span { letter-spacing: 1px; }
+.draft-pool h4 { margin: 14px 0 8px; color: #e2c892; font: 600 11px/1 'Be Vietnam Pro', sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+.draft-pool .row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.draft-focus { position: fixed; inset: auto 0 0; z-index: 2; display: grid; justify-items: center; gap: 10px; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: #0b1120f5; border-top: 1px solid #c6aa775e; }
+.draft-focus .dcard.big { --w: 190px; }
+.draft-focus .row { display: flex; gap: 10px; }
+
+/* ---------- reaction prompt ---------- */
+.duel-react { position: fixed; left: 50%; top: 42%; translate: -50% -50%; z-index: 12; }
+.react-box {
+  display: grid; justify-items: center; gap: 8px; padding: 14px 18px; border-radius: 12px; min-width: 260px;
+  background: #151e32f5; border: 1px solid var(--c); box-shadow: 0 0 30px color-mix(in srgb, var(--c) 40%, transparent), 0 12px 40px #000a;
+  color: #f3ebd9; font: 500 14px/1.4 'Be Vietnam Pro', sans-serif; text-align: center;
+}
+.react-box p { margin: 0; }
+.react-box .row { display: flex; gap: 8px; justify-content: center; }
+.react-box .timer { width: 100%; height: 3px; border-radius: 2px; background: #e2c892; transform-origin: left; animation: duel-timer var(--t) linear forwards; }
+@keyframes duel-timer { to { transform: scaleX(0); } }
+
+/* ---------- casts ---------- */
+.duel-cast { position: fixed; inset: 0; z-index: 11; display: grid; place-content: center; justify-items: center; gap: 12px; pointer-events: none; }
+.duel-cast p { margin: 0; padding: 6px 14px; border-radius: 20px; background: #0b1120d9; border: 1px solid var(--c); color: #fae6b1; font: 600 15px/1.2 'Be Vietnam Pro', sans-serif; }
+.duel-cast .row { display: flex; gap: 10px; }
+.duel-cast.go .dcard { animation: duel-cast .5s cubic-bezier(.2, 1.3, .4, 1) both; }
+.duel-cast.go .dcard:nth-child(2) { animation-delay: .06s; } .duel-cast.go .dcard:nth-child(3) { animation-delay: .12s; }
+.duel-cast.go .dcard:nth-child(n + 4) { animation-delay: .18s; }
+@keyframes duel-cast { from { opacity: 0; transform: translateY(45vh) scale(.4) rotate(-14deg); } }
+
+/* ---------- board bits ---------- */
+.square-pick { fill: #fae6b14d; stroke: #fae6b1; stroke-width: 2; cursor: pointer; pointer-events: auto; animation: duel-pulse 1s ease-in-out infinite alternate; }
+.square-pick:hover, .square-pick:focus-visible { fill: #fae6b199; outline: none; }
+@keyframes duel-pulse { to { fill-opacity: .55; } }
+.badges, .badges3d { pointer-events: none; }
+.badge-n, .badges3d .badge-n { font: 800 9px/1 sans-serif; fill: #fff; stroke: #0b1120; stroke-width: 2.5px; paint-order: stroke; }
+.duel-meta { grid-column: 1 / -1; display: flex; gap: 8px; font-size: 12px; color: #bdc2d0; }
+.duel-who { padding: 3px 10px; border-left: 3px solid var(--c) !important; }
+
+@media (max-width: 760px), (max-height: 560px) {
+  .duel-hand .dcard { --w: 82px; }
+  .duel-hand .dcard .ds, .duel-hand .dcard .kd { display: none; }
+  .duel-hand .dcard + .dcard { margin-left: -18px; }
+  .floating .duel-hand { margin-bottom: -30px; }
+  .draft-pool .dcard { --w: 92px; }
+  .draft-pool .dcard .ds { display: none; }
+  .duel-info { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .duel-cast.go .dcard { animation: none; } .square-pick { animation: none; } }

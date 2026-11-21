@@ -55,20 +55,27 @@ export function target(s: GameState, h: Horse, d: number): number | null {
 
 export function legalActions(s: GameState): Action[] {
   if (s.phase === 'over') return [];
-  const cards = getVariant(s.variant).cardActions?.(s) ?? [];
-  if (s.phase === 'roll') return [{ type: 'roll' }, ...cards];
-  const moves: Action[] = s.horses
-    .filter(h => h.owner === s.turn && h.frozen === 0 && target(s, h, s.dice) !== null)
-    .map(h => ({ type: 'move', horse: h.id }));
-  return [...(moves.length ? moves : [{ type: 'pass' } as Action]), ...cards];
+  const v = getVariant(s.variant);
+  const cards = v.cardActions?.(s) ?? [];
+  let core: Action[] = [];
+  if (s.phase === 'roll') core = [{ type: 'roll' }, ...cards];
+  else if (s.phase === 'move') {
+    const moves: Action[] = s.horses
+      .filter(h => h.owner === s.turn && (v.canMove ? v.canMove(s, h) : h.frozen === 0) && target(s, h, s.dice) !== null)
+      .map(h => ({ type: 'move', horse: h.id }));
+    core = [...(moves.length ? moves : [{ type: 'pass' } as Action]), ...cards];
+  }
+  return v.actions ? v.actions(s, core) : core;
 }
 
-export const sameAction = (a: Action, b: Action) =>
-  a.type === b.type &&
-  (a.type !== 'move' || a.horse === (b as typeof a).horse) &&
-  (a.type !== 'card' || (a.card === (b as typeof a).card && a.target === (b as typeof a).target));
+/** Same action, ignoring how a die was thrown. */
+export const sameAction = (a: Action, b: Action) => a.type === b.type && (a.type === 'roll' || JSON.stringify(a) === JSON.stringify(b));
 
-export const isLegal = (s: GameState, a: Action) => legalActions(s).some(x => sameAction(x, a));
+export function isLegal(s: GameState, a: Action): boolean {
+  if (s.phase === 'over') return false;
+  const own = getVariant(s.variant).legal?.(s, a);
+  return own ?? legalActions(s).some(x => sameAction(x, a));
+}
 
 const rollDie = (rng: Rng) => 1 + Math.floor(rng() * 6);
 
@@ -76,7 +83,13 @@ const rollDie = (rng: Rng) => 1 + Math.floor(rng() * 6);
 export function step(s: GameState, a: Action, rng: Rng): GameEvent[] {
   if (!isLegal(s, a)) throw new Error(`illegal action ${JSON.stringify(a)}`);
   const v = getVariant(s.variant);
-  const ctx: Ctx = { rng, ev: [], roll: value => applyRoll(s, value, ctx) };
+  const ctx: Ctx = {
+    rng,
+    ev: [],
+    roll: value => applyRoll(s, value, ctx),
+    move: (h, d) => moveBy(s, v, h, d, ctx),
+    endTurn: bonus => endTurn(s, v, ctx, bonus),
+  };
   switch (a.type) {
     case 'roll':
       applyRoll(s, rollDie(rng), ctx, a.toss);
@@ -91,6 +104,8 @@ export function step(s: GameState, a: Action, rng: Rng): GameEvent[] {
     case 'card':
       v.applyCard?.(s, a, ctx);
       break;
+    default:
+      v.apply?.(s, a, ctx);
   }
   return ctx.ev;
 }
@@ -101,6 +116,8 @@ export function applyRoll(s: GameState, value: number, ctx: Ctx, toss?: Toss) {
   s.phase = 'move';
   toss ??= { power: 0.35 + ctx.rng() * 0.4, angle: (ctx.rng() - 0.5) * 1.2, seed: Math.floor(ctx.rng() * 2 ** 31) };
   ctx.ev.push({ t: 'roll', player: s.turn, value, toss });
+  getVariant(s.variant).onRoll?.(s, value, ctx);
+  if (s.phase !== 'move') return; // the variant moved the game on
   const acts = legalActions(s);
   if (acts.length === 1 && acts[0].type === 'pass') {
     ctx.ev.push({ t: 'pass', player: s.turn });
@@ -109,7 +126,13 @@ export function applyRoll(s: GameState, value: number, ctx: Ctx, toss?: Toss) {
 }
 
 function doMove(s: GameState, v: Variant, h: Horse, ctx: Ctx) {
-  const to = target(s, h, s.dice)!;
+  moveBy(s, v, h, s.dice, ctx);
+  endTurn(s, v, ctx, s.dice === 6);
+}
+
+/** A dice move of `d` (must be legal): kick, landing hooks, win. Does not end the turn. */
+function moveBy(s: GameState, v: Variant, h: Horse, d: number, ctx: Ctx) {
+  const to = target(s, h, d)!;
   const from = h.pos;
   const path = from === STABLE ? [0] : Array.from({ length: to - from }, (_, i) => from + 1 + i);
   ctx.ev.push({ t: 'move', horse: h.id, path });
@@ -118,21 +141,22 @@ function doMove(s: GameState, v: Variant, h: Horse, ctx: Ctx) {
     if (occ && occ.owner !== h.owner) kick(occ, h, ctx);
   }
   h.pos = to;
+  if (to > GATE && h.fx) h.fx = undefined; // the home column is out of every card's reach
   if (onTrack(h)) v.onLand?.(s, h, ctx);
+  v.onMoved?.(s, h, from === STABLE ? 0 : to - from, ctx);
 
   if (s.horses.every(x => x.owner !== h.owner || x.pos >= GATE + WIN_STEP)) {
     s.winner = h.owner;
     s.phase = 'over';
     ctx.ev.push({ t: 'win', player: h.owner });
-    return;
   }
-  endTurn(s, v, ctx, s.dice === 6);
 }
 
 function endTurn(s: GameState, v: Variant, ctx: Ctx, bonus: boolean) {
   if (s.phase === 'over') return;
   s.dice = 0;
   s.phase = 'roll';
+  if (!bonus && v.extraRoll?.(s)) bonus = true;
   if (bonus) return ctx.ev.push({ t: 'turn', player: s.turn }), undefined;
   // a variant may skip whole turns; it must not skip every player forever
   for (;;) {

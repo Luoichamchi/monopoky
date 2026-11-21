@@ -10,7 +10,7 @@ export function seeded(seed: number) {
 }
 const two = (variant = 'classic') =>
   createGame(variant, [{ name: 'A', seat: 0 }, { name: 'B', seat: 2 }], seeded(1));
-const ctx = (s: GameState): Ctx => ({ rng: seeded(2), ev: [], roll: v => applyRoll(s, v, ctx(s)) });
+const ctx = (s: GameState): Ctx => ({ rng: seeded(2), ev: [], roll: v => applyRoll(s, v, ctx(s)), move: () => {}, endTurn: () => {} });
 
 test('exit needs 6, otherwise auto-pass to next player', () => {
   const s = two();
@@ -98,7 +98,7 @@ test('party: bomb kicks enemies within 2 squares, the horse that stops on it is 
   assert.notEqual(b3.pos, STABLE, '3 squares away is out of range');
 });
 
-for (const variant of ['classic', 'party'])
+for (const variant of ['classic', 'party', 'duel'])
   test(`${variant}: full random 4p games finish without errors`, () => {
     for (let g = 0; g < 20; g++) {
       const rng = seeded(g + 10);

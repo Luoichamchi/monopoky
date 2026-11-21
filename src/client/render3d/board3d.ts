@@ -6,7 +6,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { GATE, HOME, STABLE, absOf, seatOf } from '../../core/board.ts';
-import type { GameEvent, GameState } from '../../core/types.ts';
+import type { GameEvent, GameState, HorseFx, Trap } from '../../core/types.ts';
 import { TIMING } from '../../session.ts';
 import { animate, burst, done, explosion, iconPop, impact, sfxText, shake, svg, utils } from '../render/fx.ts';
 import { CELL, TRACK_CELLS, horseXY } from '../render/layout.ts';
@@ -14,7 +14,7 @@ import type { BoardRenderer } from '../render/renderer.ts';
 import { INK, disposeRenderer, noOutline, toon } from './toon.ts';
 import { mergeStatic } from './merge.ts';
 import { SpiritDust, smokeRibbons, time as smokeTime, type Smoke } from './spirit.ts';
-import { TILE_SKIN } from '../render/skins.ts';
+import { DUEL_SKIN, STATUS_ICON, TILE_SKIN } from '../render/skins.ts';
 import { AVATARS, isAvatar } from '../../protocol.ts';
 import { loadAvatar, rimLit } from './avatar-preview.ts';
 import { THEME, seatColor } from '../render/theme.ts';
@@ -25,13 +25,16 @@ const ATLAS_URL = `${import.meta.env.BASE_URL}models/atlas-board.glb`; // built 
 let atlasAsset: GLTF | undefined;
 const PIECE_URL = `${import.meta.env.BASE_URL}models/horse-piece.glb`; // built by tools/blender/horse_piece.py
 let pieceAsset: GLTF | undefined;
+const CARD_URL = `${import.meta.env.BASE_URL}models/card.glb`; // built by tools/blender/card_blank.py
+let cardAsset: GLTF | undefined;
 const AVATAR_SCALE = 1.5; // avatar height ÷ height of the peak it stands on
 
 export async function preload() {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // models are packed by `npm run models`
-  [atlasAsset, pieceAsset] = await Promise.all([ // avatars: only the seated ones, see placeAvatar
+  [atlasAsset, pieceAsset, cardAsset] = await Promise.all([ // avatars: only the seated ones, see placeAvatar
     atlasAsset ?? loader.loadAsync(ATLAS_URL),
     pieceAsset ?? loader.loadAsync(PIECE_URL),
+    cardAsset ?? loader.loadAsync(CARD_URL).catch(e => (console.warn('card model unavailable', e), undefined)),
   ]);
   await document.fonts?.load('800 64px "Baloo 2"').catch(() => undefined); // labels are drawn on canvases
 }
@@ -77,7 +80,10 @@ function canvasTexture(size: number, draw: (c: CanvasRenderingContext2D) => void
 
 /** Party tile sticker: a flat round badge (tile colour ring, emoji) lying on the cell top. */
 function tileDecal(kind: string, size: number) {
-  const { icon, color } = TILE_SKIN[kind];
+  return decal(TILE_SKIN[kind].icon, TILE_SKIN[kind].color, size);
+}
+
+function decal(icon: string, color: string, size: number) {
   const map = canvasTexture(128, c => {
     c.beginPath();
     c.arc(64, 64, 58, 0, Math.PI * 2);
@@ -97,6 +103,31 @@ function tileDecal(kind: string, size: number) {
   return m;
 }
 
+/** Duel trap: the card model lying face down on its square, a ring in the owner's colour under it. */
+function trapCard(color: string, icon: string | undefined) {
+  const g = new THREE.Group();
+  if (cardAsset) {
+    const card = cardAsset.scene.clone();
+    card.rotation.set(Math.PI, 0.25, 0); // back up
+    card.scale.setScalar(0.85);
+    card.position.y = 0.02;
+    g.add(card);
+  } else {
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.02, 0.75), toon(0x1a2140));
+    back.position.y = 0.02;
+    g.add(back);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.03, 6, 32), noOutline(new THREE.MeshBasicMaterial({ color })));
+  ring.rotation.x = -Math.PI / 2;
+  g.add(ring);
+  if (icon) {
+    const d = decal(icon, color, 0.34);
+    d.position.set(0.18, 0.04, 0.24);
+    g.add(d);
+  }
+  return g;
+}
+
 interface Horse3D {
   root: THREE.Group; // positioned on the board
   body: THREE.Group; // turned to face movement, scaled for kicks/teleports
@@ -105,6 +136,7 @@ interface Horse3D {
   ice: THREE.Mesh; // shown while the horse is frozen
   hit: THREE.Mesh;
   spirit: SpiritParts;
+  badges: SVGGElement; // duel status icons, placed over the horse every frame
 }
 
 interface SpiritParts {
@@ -154,6 +186,9 @@ export class Board3D implements BoardRenderer {
   private onPick?: (id: number) => void;
   private preview?: (id: number) => number | null;
   private down?: [number, number];
+  private traps = new Map<number, THREE.Object3D>();
+  private squares: THREE.Mesh[] = [];
+  private onSquare?: (abs: number) => void;
   readonly fullTable = true; // the board fills the table; panels and the dice float above it
 
   constructor(host: HTMLElement) {
@@ -200,6 +235,10 @@ export class Board3D implements BoardRenderer {
       if (this.down && Math.hypot(e.clientX - this.down[0], e.clientY - this.down[1]) < 6) {
         const id = this.pick(e);
         if (id !== undefined) this.onPick?.(id);
+        else {
+          const abs = this.pickSquare(e);
+          if (abs !== undefined) this.onSquare?.(abs);
+        }
       }
       this.down = undefined;
     });
@@ -217,6 +256,9 @@ export class Board3D implements BoardRenderer {
     this.gen++;
     this.world.clear();
     this.cells.clear();
+    this.traps.clear();
+    this.squares = [];
+    this.horses?.forEach(h => h.badges.remove());
     this.flag = undefined;
     this.tops = [];
     this.drawBoard(s);
@@ -239,8 +281,26 @@ export class Board3D implements BoardRenderer {
       hz.body.rotation.set(0, h.pos === STABLE ? this.faceCenter(hz.root.position) : this.heading(h.id, h.pos), 0);
       hz.bubble.visible = h.shield > 0;
       hz.ice.visible = h.frozen > 0;
+      this.badges(h.id, h.fx);
     }
     this.paintCells();
+    this.drawTraps(s.duel?.traps ?? []);
+  }
+
+  setSquares(abs: number[], onPick?: (abs: number) => void) {
+    this.squares.forEach(m => (this.world.remove(m), m.geometry.dispose()));
+    this.squares = abs.map(a => {
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.86, 0.86),
+        noOutline(new THREE.MeshBasicMaterial({ color: 0xfae6b1, transparent: true, opacity: 0.45, depthWrite: false })),
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.copy(this.square(a)).setY(this.square(a).y + 0.06);
+      m.userData.abs = a;
+      this.world.add(m);
+      return m;
+    });
+    this.onSquare = onPick;
   }
 
   setPickable(ids: number[], onPick?: (id: number) => void, preview?: (id: number) => number | null) {
@@ -281,7 +341,79 @@ export class Board3D implements BoardRenderer {
         this.horses[e.horse].ice.visible = e.on;
         if (e.on) await burst(this.fx, ...this.screen(this.horses[e.horse].root.position, 0.5), ['#bdf0ff', '#ffffff'], 14);
         break;
+      case 'status': {
+        const hz = this.horses[e.horse];
+        const fx: HorseFx = { ...(this.s.horses[e.horse].fx ?? {}), [e.kind]: e.n };
+        this.badges(e.horse, fx);
+        if (e.kind === 'ice') hz.ice.visible = e.n > 0;
+        if (e.kind === 'guard') hz.bubble.visible = e.n > 0;
+        if (e.n > 0) await iconPop(this.fx, ...this.screen(hz.root.position, 0.9), STATUS_ICON[e.kind], '#ffffffcc');
+        break;
+      }
+      case 'trap':
+        if (e.on) {
+          const g = this.trapMesh({ abs: e.abs, owner: e.owner, kind: e.kind, left: 0 });
+          g.scale.setScalar(0.01);
+          await done(animate(g.scale, { x: 1, y: 1, z: 1, duration: 420, ease: 'outBack(2)' }));
+        } else {
+          const g = this.traps.get(e.abs);
+          this.traps.delete(e.abs);
+          if (g) await done(animate(g.scale, { x: 0.01, y: 0.01, z: 0.01, duration: 250, onComplete: () => this.world.remove(g) }));
+        }
+        break;
+      case 'spring': {
+        const at = this.square(e.abs);
+        const g = this.traps.get(e.abs);
+        this.traps.delete(e.abs);
+        if (g) this.world.remove(g);
+        const [x, y] = this.screen(at, 0.4);
+        shake(this.el, 8);
+        burst(this.fx, x, y, ['#b58cff', '#ffffff', '#ffe14d'], 16);
+        await iconPop(this.fx, x, y, DUEL_SKIN[e.kind] ?? '❔', '#b58cff');
+        break;
+      }
+      case 'link':
+        if (e.on) await iconPop(this.fx, ...this.screen(this.horses[e.follower].root.position, 0.8), '🔗', '#b58cff');
+        break;
     }
+  }
+
+  /** Top centre of a track square. */
+  private square(abs: number) {
+    const [c, r] = TRACK_CELLS[abs];
+    const cell = this.cells.get(abs);
+    const top = cell ? new THREE.Box3().setFromObject(cell).max.y : H.track;
+    return new THREE.Vector3(c + 0.5 - 7.5, top, r + 0.5 - 7.5);
+  }
+
+  private drawTraps(traps: Trap[]) {
+    const keep = new Set(traps.map(t => t.abs));
+    for (const [abs, g] of this.traps) if (!keep.has(abs)) (this.world.remove(g), this.traps.delete(abs));
+    for (const t of traps) this.trapMesh(t);
+  }
+
+  private trapMesh(t: Trap) {
+    const old = this.traps.get(t.abs);
+    if (old) this.world.remove(old);
+    const g = trapCard(seatColor(seatOf(this.s, t.owner)).main, t.kind !== '?' ? DUEL_SKIN[t.kind] : undefined);
+    g.position.copy(this.square(t.abs));
+    this.world.add(g);
+    this.traps.set(t.abs, g);
+    return g;
+  }
+
+  /** Status icons over a horse (positioned every frame). */
+  private badges(id: number, fx: HorseFx | undefined) {
+    const g = this.horses[id]?.badges;
+    if (!g) return;
+    g.innerHTML = '';
+    const n = (k: string) => (fx as Record<string, number> | undefined)?.[k] ?? 0;
+    const on = Object.entries(STATUS_ICON).filter(([k]) => n(k) > 0);
+    on.forEach(([k, icon], i) => {
+      const x = (i - (on.length - 1) / 2) * 18;
+      svg('text', { x, y: 0, 'font-size': 15, 'text-anchor': 'middle' }, g, icon);
+      if (n(k) > 1 && k !== 'immune') svg('text', { x: x + 8, y: 6, class: 'badge-n' }, g, String(n(k)));
+    });
   }
 
   cheer(horse: number, icon: string, color: string) {
@@ -318,6 +450,12 @@ export class Board3D implements BoardRenderer {
     this.stables.forEach((mats, seat) => mats.forEach(m => (m.emissiveIntensity = seat === this.turnSeat ? glow : 0)));
     const pulse = 1 + 0.12 * Math.sin(t * 8);
     this.horses.forEach(h => h.ring.visible && h.ring.scale.setScalar(pulse));
+    this.squares.forEach(m => ((m.material as THREE.MeshBasicMaterial).opacity = 0.3 + 0.2 * Math.sin(t * 6)));
+    this.horses.forEach(h => {
+      if (!h.badges.childElementCount) return;
+      const [x, y] = this.screen(h.root.position, 1.35);
+      h.badges.setAttribute('transform', `translate(${x} ${y})`);
+    });
     this.marker.rotation.z = t * 2;
     if (this.aimAt !== undefined) this.turnView(dt);
     this.controls.update();
@@ -436,9 +574,15 @@ export class Board3D implements BoardRenderer {
     return this.raycaster.intersectObjects(targets, false)[0]?.object.userData.id;
   }
 
+  private pickSquare(e: PointerEvent): number | undefined {
+    if (!this.squares.length) return undefined;
+    this.aim(e);
+    return this.raycaster.intersectObjects(this.squares, false)[0]?.object.userData.abs;
+  }
+
   private hover(e: PointerEvent) {
     const id = this.pick(e);
-    this.renderer.domElement.style.cursor = id === undefined ? '' : 'pointer';
+    this.renderer.domElement.style.cursor = id === undefined && this.pickSquare(e) === undefined ? '' : 'pointer';
     const to = id === undefined ? null : (this.preview?.(id) ?? null);
     this.marker.visible = to !== null;
     if (to === null || id === undefined) return;
@@ -676,8 +820,9 @@ export class Board3D implements BoardRenderer {
     hit.userData.id = id;
     root.add(ring, bubble, ice, hit);
     this.world.add(root);
+    const badges = svg('g', { class: 'badges3d' }, this.overlay);
 
-    return { root, body, ring, bubble, ice, hit, spirit };
+    return { root, body, ring, bubble, ice, hit, spirit, badges };
   }
 
   // ---------- animations ----------

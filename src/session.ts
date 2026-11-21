@@ -3,6 +3,7 @@ import { chooseAction } from './ai/bots.ts';
 import { cloneState } from './core/board.ts';
 import { createGame, isLegal, step } from './core/engine.ts';
 import type { Action, BotLevel, GameEvent, GameState, PlayerConfig, Rng } from './core/types.ts';
+import { viewState } from './core/view.ts';
 
 export interface Update {
   state: GameState;
@@ -11,14 +12,18 @@ export interface Update {
 
 // Pacing contract with the renderer, so bots wait for animations to finish.
 // ponytail: estimated, not acknowledged by clients; add client "done" acks if animations get long/variable.
-export const TIMING = { hop: 150, roll: 1400, kick: 650, tile: 550, banner: 900 };
+export const TIMING = { hop: 150, roll: 1400, kick: 650, tile: 550, banner: 900, card: 900 };
+/** Duel mode: how long a human may think before the rules decide (a random draft pick, no reaction). */
+export const WAIT = { pick: 20_000, react: 6_000 };
 export function animMs(events: GameEvent[]): number {
   let ms = 0;
   for (const e of events) {
     if (e.t === 'move') ms += e.jump ? 600 : e.path.length * TIMING.hop + 100;
     else if (e.t === 'roll') ms += TIMING.roll;
     else if (e.t === 'kick') ms += TIMING.kick;
-    else if (e.t === 'tile' || e.t === 'card' || e.t === 'freeze') ms += TIMING.tile;
+    else if (e.t === 'tile' || e.t === 'card' || e.t === 'freeze' || e.t === 'spring' || e.t === 'status') ms += TIMING.tile;
+    else if (e.t === 'play' || e.t === 'react' || e.t === 'legend') ms += TIMING.card;
+    else if (e.t === 'trap' || e.t === 'steal') ms += 300;
     else if (e.t === 'turn') ms += 150;
   }
   return ms;
@@ -40,6 +45,18 @@ export function sanitizeAction(a: unknown): Action | null {
   if (o.type === 'move' && Number.isInteger(o.horse)) return { type: 'move', horse: o.horse as number };
   if (o.type === 'card' && typeof o.card === 'string' && Number.isInteger(o.target))
     return { type: 'card', card: o.card, target: o.target as number };
+  if ((o.type === 'pick' || o.type === 'react' || o.type === 'discard') && typeof o.card === 'string' && o.card.length < 20)
+    return { type: o.type, card: o.card };
+  if (o.type === 'endure' && Number.isInteger(o.horse)) return { type: 'endure', horse: o.horse as number };
+  if (o.type === 'play' && Array.isArray(o.picks) && o.picks.length <= 6) {
+    const picks = o.picks.map(p => {
+      const q = p as Record<string, unknown> | null;
+      return q && typeof q.card === 'string' && Array.isArray(q.t) && q.t.length <= 2 && q.t.every(Number.isInteger)
+        ? { card: q.card, t: q.t as number[] }
+        : null;
+    });
+    return picks.every(p => p) ? { type: 'play', picks: picks as { card: string; t: number[] }[] } : null;
+  }
   return null;
 }
 
@@ -94,16 +111,22 @@ export class GameSession {
     const epoch = ++this.epoch;
     const s = this.state;
     const level = s.players[s.turn]?.bot;
-    if (s.phase === 'over' || !level) return;
+    if (s.phase === 'over') return;
     const turn = s.turn;
+    if (!level) {
+      // a human who doesn't answer: the draft picks for them, a reaction window closes
+      const auto: Action | undefined = s.phase === 'draft' ? { type: 'pick', card: '' } : s.phase === 'react' ? { type: 'react', card: '' } : undefined;
+      if (auto) this.timer = setTimeout(() => epoch === this.epoch && this.act(turn, auto), animMs(events) + (s.phase === 'draft' ? WAIT.pick : WAIT.react));
+      return;
+    }
     this.timer = setTimeout(async () => {
       let a: Action;
       try {
-        a = await this.think(cloneState(s), level);
+        a = await this.think(viewState(cloneState(s), turn), level); // bots see what a human in that seat would
       } catch {
-        a = chooseAction(cloneState(s), level, { rng: this.rng }); // worker failed: think here rather than stall the game
+        a = chooseAction(viewState(cloneState(s), turn), level, { rng: this.rng }); // worker failed: think here rather than stall the game
       }
       if (epoch === this.epoch) this.act(turn, a);
-    }, animMs(events) + 400);
+    }, s.phase === 'draft' ? 150 : animMs(events) + 400); // draft picks have nothing to watch
   }
 }

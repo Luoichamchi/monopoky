@@ -56,9 +56,15 @@ export function threat(s: GameState, h: Horse, occ = occupancy(s)): number {
 export function playerScore(s: GameState, p: number, withRisk = true): number {
   const occ = withRisk ? occupancy(s) : [];
   let score = s.players[p].cards.length * W.card;
+  const d = s.duel;
+  if (d) {
+    if (d.legend[p]) score += 25;
+    score += d.traps.filter(t => t.owner === p).length * 8;
+  }
   for (const h of s.horses) {
     if (h.owner !== p || h.pos === STABLE) continue;
     if (h.frozen > 0) score -= W.frozen;
+    if (h.fx) score -= ((h.fx.rev ?? 0) * 1.5 + (h.fx.chain ?? 0) + (h.fx.ice ?? 0)) * W.frozen - (h.fx.guard ?? 0) * 4;
     if (h.pos > GATE) {
       score += W.onBoard + GATE * W.progress + GATE * GATE * W.quad + W.home + homeStep(h) * W.homeStep;
       continue;

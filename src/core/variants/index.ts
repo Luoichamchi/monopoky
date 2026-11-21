@@ -1,9 +1,10 @@
 import type { Variant } from '../types.ts';
 import { classic } from './classic.ts';
 import { party } from './party/index.ts';
+import { duelMode } from './duel/index.ts';
 
 // Register new game modes here.
-export const VARIANTS: Variant[] = [classic, party];
+export const VARIANTS: Variant[] = [classic, party, duelMode];
 
 export function getVariant(id: string): Variant {
   const v = VARIANTS.find(x => x.id === id);

@@ -19,6 +19,9 @@ import { CARD_SKIN, TILE_SKIN } from '../render/skins.ts';
 import { THEME, seatColor } from '../render/theme.ts';
 import { esc } from './dom.ts';
 import { icon } from './icons.ts';
+import { DuelUI } from './duel.ts';
+import { DUEL_CARDS } from '../../core/variants/duel/cards.ts';
+import { DUEL_SKIN, KIND_COLOR, STATUS_ICON } from '../render/skins.ts';
 import '../atlas.css';
 
 export interface Conn {
@@ -46,7 +49,9 @@ export class GameScreen {
   private autoMove?: ReturnType<typeof setTimeout>;
   private shaking?: ReturnType<typeof setTimeout>;
   private conn: Conn;
+  private duel?: DuelUI; // duel mode: hand tray, draft, reactions
   private keyHandler = (e: KeyboardEvent) => {
+    if (e.code === 'Escape' && this.duel?.targeting) this.duel.cancel();
     if (e.code === 'Escape' && this.aiming) (this.aiming = undefined), this.refreshInput();
   };
 
@@ -119,6 +124,7 @@ export class GameScreen {
     this.board?.destroy();
     this.dice?.destroy();
     this.smoke?.destroy();
+    this.duel?.destroy();
     this.el.remove();
   }
 
@@ -151,6 +157,17 @@ export class GameScreen {
   }
 
   private async apply(u: Update) {
+    if (u.state.duel && !this.duel)
+      this.duel = new DuelUI(this.el, {
+        me: () => this.me(),
+        send: a => this.send(a),
+        say: html => this.say(html),
+        board: () => this.board,
+        name: p => this.name(p),
+        color: p => this.color(p).main,
+        refresh: () => this.refreshInput(),
+      });
+    this.placeHand();
     if (!this.s) {
       this.build(u.state);
       this.s = u.state;
@@ -184,6 +201,7 @@ export class GameScreen {
       this.el.dataset.theme = layered ? 'atlas' : '3d';
       const anchor = this.el.querySelector(layered ? '.roll-well' : '[data-settings]')!;
       anchor.before(this.status);
+      this.placeHand();
       if (this.s) {
         this.build(this.s);
         this.board.setTurn(this.s.phase === 'over' ? -1 : seatOf(this.s, this.s.turn));
@@ -198,6 +216,10 @@ export class GameScreen {
     }
     this.shown = { ...l };
     this.say(before);
+  }
+
+  private placeHand() {
+    this.duel?.place(this.board && !this.board.fullTable ? this.el.querySelector<HTMLElement>('.arena-rail') : null);
   }
 
   /** Draw a fresh board, seen from this browser's own seat (spectators keep the default view). */
@@ -240,6 +262,107 @@ export class GameScreen {
 
   // ---------- events ----------
 
+  /** The player this browser plays, -1 when only watching (bots never count). */
+  private me() {
+    return this.s ? this.s.players.findIndex((p, i) => this.conn.controls(i) && !p.bot) : -1;
+  }
+
+  private cardName(id: string) {
+    const c = DUEL_CARDS[id];
+    return c ? `${DUEL_SKIN[id]} <b>${esc(c.name)}</b>` : 'một lá bài';
+  }
+
+  /** Duel events: texts and sounds here, visuals in the board renderer and DuelUI. */
+  private async playDuel(e: GameEvent) {
+    const s = this.s!;
+    const hand = (p: number) => s.players[p].cards;
+    /** Take a card out of a hand as this browser sees it (other players' cards are '?'). */
+    const take = (p: number, card: string) => {
+      const h = hand(p), i = h.indexOf(card), j = i >= 0 ? i : h.indexOf('?');
+      if (j >= 0) h.splice(j, 1);
+    };
+    switch (e.t) {
+      case 'pick':
+        s.duel!.pool[e.card]--;
+        s.duel!.lists[e.player].push(e.card);
+        this.say(`${this.name(e.player)} chọn ${this.cardName(e.card)}`);
+        sfx.play('gain');
+        this.renderPanels();
+        await wait(s.players[e.player].bot ? 120 : 60);
+        break;
+      case 'begin':
+        this.say('Bộ bài đã xong. Vào trận!');
+        sfx.play('turn');
+        break;
+      case 'draw':
+        hand(e.player).push(e.card);
+        if (e.player === this.me()) sfx.play('gain');
+        this.renderPanels();
+        break;
+      case 'discard':
+        take(e.player, e.card);
+        this.say(`${this.name(e.player)} bỏ ${this.cardName(e.card)}`);
+        this.renderPanels();
+        break;
+      case 'play':
+        for (const pk of e.picks) if (DUEL_CARDS[pk.card]?.kind !== 'legend') take(e.player, pk.card);
+        if (DUEL_CARDS[e.picks[0].card]?.kind === 'legend') s.duel!.legend[e.player] = '';
+        this.renderPanels();
+        sfx.play('card');
+        this.say(`${this.name(e.player)} đánh ${e.picks.map(p => this.cardName(p.card)).join(' + ')}`);
+        await this.duel?.play(e);
+        break;
+      case 'react':
+        take(e.player, e.card);
+        this.renderPanels();
+        this.say(`${this.name(e.player)} phản bằng ${this.cardName(e.card)}!`);
+        sfx.play('card');
+        await this.duel?.play(e);
+        break;
+      case 'legend':
+        s.duel!.legend[e.player] = e.card;
+        this.say(`🌟 ${this.name(e.player)} đổ trùng 3 lần: nhận ${this.cardName(e.card)}!`);
+        sfx.play('win');
+        await this.duel?.play(e);
+        break;
+      case 'status':
+        if (e.n > 0 && (e.kind === 'ice' || e.kind === 'rev' || e.kind === 'chain')) sfx.play('ice');
+        if (e.n > 0 && (e.kind === 'guard' || e.kind === 'armor' || e.kind === 'immune')) sfx.play('shield');
+        await this.board.animate(e);
+        break;
+      case 'trap':
+        if (e.on) this.say(`${this.name(e.owner)} úp một bẫy ${e.kind !== '?' ? `(${this.cardName(e.kind)})` : ''}`);
+        if (e.on) sfx.play('trap');
+        await this.board.animate(e);
+        break;
+      case 'spring':
+        this.say(`💥 Ngựa của ${this.name(s.horses[e.horse].owner)} dính ${this.cardName(e.kind)} của ${this.name(e.owner)}!`);
+        sfx.play('bomb');
+        await this.board.animate(e);
+        break;
+      case 'reveal':
+        this.say(`🔍 Bẫy đó là ${this.cardName(e.kind)}`);
+        await wait(600);
+        break;
+      case 'steal':
+        take(e.from, e.card);
+        hand(e.to).push(e.card);
+        this.say(`${this.name(e.to)} lấy ${e.card !== '?' ? this.cardName(e.card) : 'một lá'} của ${this.name(e.from)}`);
+        sfx.play('gain');
+        this.renderPanels();
+        await wait(300);
+        break;
+      case 'seal':
+        if (e.on) this.say(`🔒 ${this.name(e.player)} bị Phong Ấn: chưa được đánh bài`);
+        await wait(e.on ? 400 : 0);
+        break;
+      case 'link':
+        if (e.on) this.say(`🔗 Liên Kết: ngựa của ${this.name(s.horses[e.follower].owner)} đi ké`);
+        await this.board.animate(e);
+        break;
+    }
+  }
+
   private name(p: number) {
     return esc(this.s!.players[p].name);
   }
@@ -249,6 +372,8 @@ export class GameScreen {
 
   private async play(e: GameEvent) {
     const s = this.s!;
+    if (s.duel && ['pick', 'begin', 'draw', 'discard', 'play', 'react', 'legend', 'status', 'trap', 'spring', 'reveal', 'steal', 'seal', 'link'].includes(e.t))
+      return this.playDuel(e);
     switch (e.t) {
       case 'roll':
         this.say(`${this.name(e.player)} đổ được <b>${e.value}</b>`);
@@ -339,8 +464,15 @@ export class GameScreen {
   private refreshInput() {
     const s = this.s;
     this.lockInput();
+    this.board?.setSquares([]);
     if (!s || this.waiting || s.phase === 'over' || !this.conn.controls(s.turn) || s.players[s.turn].bot) return this.renderPanels();
     const acts = legalActions(s);
+    if (s.duel) {
+      this.renderPanels();
+      if (this.duel?.targeting) return this.duel.applyTargeting();
+      if (s.phase === 'draft' || s.phase === 'react' || acts[0]?.type === 'discard') return;
+      if (s.phase === 'move') return this.duelMoves(s, acts);
+    }
 
     if (this.aiming) {
       const cardActs = acts.filter(a => a.type === 'card' && a.card === this.aiming) as Extract<Action, { type: 'card' }>[];
@@ -351,7 +483,7 @@ export class GameScreen {
       return this.renderPanels();
     }
 
-    if (s.phase === 'roll') {
+    if (s.phase === 'roll' && acts.some(a => a.type === 'roll')) {
       this.canRoll = true;
       this.el.querySelector<HTMLButtonElement>('[data-roll]')!.disabled = false;
       this.dice.setReady(true, this.color(s.turn).main);
@@ -371,6 +503,25 @@ export class GameScreen {
       if (moves.length) this.say(`${this.name(s.turn)} đổ <b>${s.dice}</b> — chọn ngựa để đi`);
     }
     this.renderPanels();
+  }
+
+  /** Duel move phase: horses to move or to give the roll to (controlled ones); cards are picked in the tray. */
+  private duelMoves(s: GameState, acts: Action[]) {
+    const moves = acts.filter(a => a.type === 'move') as Extract<Action, { type: 'move' }>[];
+    const endure = acts.filter(a => a.type === 'endure') as Extract<Action, { type: 'endure' }>[];
+    const ids = [...moves.map(m => m.horse), ...endure.map(m => m.horse)];
+    if (acts.length === 1 && moves.length === 1) {
+      this.autoMove = setTimeout(() => this.send(moves[0]), 350);
+      return;
+    }
+    this.board.setPickable(
+      ids,
+      id => this.send(moves.some(m => m.horse === id) ? { type: 'move', horse: id } : { type: 'endure', horse: id }),
+      id => (moves.some(m => m.horse === id) ? target(s, s.horses[id], s.dice) : null),
+    );
+    this.el.querySelector<HTMLButtonElement>('[data-pass]')!.hidden = !acts.some(a => a.type === 'pass');
+    const fx = endure.length ? ` · ngựa có ${STATUS_ICON.ice}: bấm để giải 1 lớp` : '';
+    this.say(`${this.name(s.turn)} đổ <b>${s.dice}</b> — chọn ngựa để đi${fx}`);
   }
 
   /** Bottom notice of whose turn it is. Stays up the whole turn (the player may not have rolled yet). True if it's ours. */
@@ -420,12 +571,26 @@ export class GameScreen {
             <div class="cards"></div>
           </div>
           <div class="horse-stats"><span title="Đã xuất chuồng" aria-label="${out} ngựa đã xuất chuồng">${icon('hoof')}${out}/4</span><span title="Đã về đích" aria-label="${home} ngựa đã về đích">${icon('flag')}${home}/4</span></div>
+          ${s.duel ? this.duelMeta(i) : ''}
         </div>`;
-      this.chips(i, acts, panel.querySelector('.cards')!);
+      if (!s.duel) this.chips(i, acts, panel.querySelector('.cards')!); // duel hands live in the tray
     });
     const hand = this.el.querySelector<HTMLElement>('.hand')!; // 3D has no panels: the turn's cards sit by the dice
     hand.innerHTML = '';
+    if (s.duel) {
+      const me = this.me();
+      this.duel?.render(s, me >= 0 && s.turn === me && !this.waiting && !this.busy ? acts : []);
+      return;
+    }
     this.chips(s.turn, acts, hand);
+  }
+
+  /** Duel line on a player panel: hand size, legend held, seals. */
+  private duelMeta(p: number) {
+    const d = this.s!.duel!;
+    const legend = d.legend[p] ? `<span title="Đang giữ lá huyền thoại ${esc(DUEL_CARDS[d.legend[p]].name)}" style="color:${KIND_COLOR.legend}">${DUEL_SKIN[d.legend[p]]}</span>` : '';
+    const traps = d.traps.filter(t => t.owner === p).length;
+    return `<div class="duel-meta"><span title="Bài trên tay">🂠 ${this.s!.players[p].cards.length}</span>${traps ? `<span title="Bẫy trên bàn">✦ ${traps}</span>` : ''}${legend}${d.sealed[p] ? '<span title="Bị Phong Ấn">🔒</span>' : ''}${d.aegis[p] ? '<span title="Khiên Thiên Mã">🏵️</span>' : ''}</div>`;
   }
 
   private chips(i: number, acts: Action[], into: Element) {
@@ -517,6 +682,12 @@ export class GameScreen {
           <li>Phải dừng đúng ở <b>cửa chuồng</b> (ô trước hàng số). Từ cửa, đổ <i>n</i> lên thẳng bậc <i>n</i>; trong chuồng muốn lên bậc <i>k+1</i> phải đổ đúng <i>k+1</i>.</li>
           <li>Thắng khi cả 4 ngựa đứng ở bậc <b>3–6</b>.</li>
         </ul>
+        ${s.duel ? `<h3>Đấu bài</h3><ul class="rules">
+          <li>Trước trận mỗi người chọn <b>12 lá</b>. Mỗi lượt rút 1 lá, tay tối đa 6.</li>
+          <li>Đổ xong, trước khi đi: đánh <b>1 lần</b> — 1 lá có điểm đúng bằng mặt xúc xắc, hoặc <b>combo N lá ★</b> khi đổ ra N, hoặc 1 bẫy (mọi mặt).</li>
+          <li>Ngựa bị khống chế (❄ 🔃 ⛓): bấm vào nó để dùng lượt giải 1 lớp.</li>
+          <li>Bẫy úp: chỉ nổ khi ngựa địch <b>dừng đúng ô</b>. Đổ trùng 3 lần liên tiếp: nhận lá huyền thoại.</li>
+          <li>Ngựa trong cột đích không chịu bất kỳ lá bài nào. Luật đầy đủ: docs/rulebook.md.</li></ul>` : ''}
         ${party ? `<h3>Ô đặc biệt</h3><ul class="legend">${Object.entries(TILE_INFO).map(([k, t]) => `<li><span class="ico" style="background:${TILE_SKIN[k].color}">${TILE_SKIN[k].icon}</span><b>${t.name}</b> — ${t.desc}</li>`).join('')}</ul>
         <h3>Thẻ bài</h3><ul class="legend">${Object.entries(CARD_INFO).map(([k, c]) => `<li><span class="ico">${CARD_SKIN[k]}</span><b>${c.name}</b> — ${c.desc}</li>`).join('')}</ul>` : ''}
         <div class="row"><button class="btn" data-close>Đã hiểu!</button></div>

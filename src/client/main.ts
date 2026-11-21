@@ -6,6 +6,7 @@ import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
 import { assignAvatars, AVATARS, BOT_LABEL, BOT_NAMES, isAvatar, type RoomView, type SeatKind } from '../protocol.ts';
 import { GameSession, type Update } from '../session.ts';
+import { viewUpdate } from '../core/view.ts';
 import { think } from './bots.ts';
 import { ask, connect } from './net.ts';
 import { seatColor } from './render/theme.ts';
@@ -58,7 +59,7 @@ const variantPicker = (current: string, disabled = false) =>
   `<div class="variants">${VARIANTS.map(
     v => `<label class="variant ${v.id === current ? 'on' : ''}" title="${esc(v.desc)}">
       <input type="radio" name="variant" value="${v.id}" ${v.id === current ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
-      <b>${icon(v.id === 'party' ? 'star' : 'hoof')}${esc(v.name)}</b><small>${esc(v.desc)}</small></label>`,
+      <b>${icon(v.id === 'party' ? 'star' : v.id === 'duel' ? 'card' : 'hoof')}${esc(v.name)}</b><small>${esc(v.desc)}</small></label>`,
   ).join('')}</div>`;
 
 // ---------------- menu: 1. game mode ----------------
@@ -175,7 +176,7 @@ function offline() {
       leave: () => menu(),
       restart: () => offline(),
     });
-    session = new GameSession(prefs.variant, players, u => view.update(u), Math.random, think);
+    session = new GameSession(prefs.variant, players, u => view.update(viewUpdate(u, 0)), Math.random, think); // you are player 0: bots' hands stay hidden
     session.start();
     return () => (session.stop(), view.destroy());
   });

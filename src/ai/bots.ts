@@ -8,6 +8,7 @@ import { GATE, STABLE, absOf, cloneState, horseAt, seatOf } from '../core/board.
 import { legalActions, step, target } from '../core/engine.ts';
 import type { Action, BotLevel, GameState, Rng } from '../core/types.ts';
 import { evaluate } from './evaluate.ts';
+import { duelPick } from './duel.ts';
 
 const TILE_BIAS: Record<string, number> = { boost: 8, portal: 10, gift: 9, shield: 7, bomb: 6, trap: -9, ice: -12 };
 
@@ -20,6 +21,7 @@ export function chooseAction(s: GameState, level: BotLevel, opts: BotOptions = {
   const rng = opts.rng ?? Math.random;
   const acts = legalActions(s);
   if (acts.length <= 1) return acts[0];
+  if (s.duel) return duelPick(s, acts, level, rng); // cards make the search trees explode: greedy, one play ahead
   switch (level) {
     case 'easy': {
       const plain = acts.filter(a => a.type !== 'card');
@@ -45,23 +47,28 @@ function argmax<T>(xs: T[], f: (x: T) => number): T {
 
 /** Cheap rule-based policy (also the rollout policy). Self-play showed "push the furthest horse" dominates. */
 export function quickPick(s: GameState, acts: Action[], rng: Rng): Action {
+  if (s.duel) return duelPick(s, acts, 'normal', rng);
   if (s.phase === 'roll') return acts[0]; // roll
   const moves = acts.filter(a => a.type === 'move');
   if (!moves.length) return acts.find(a => a.type === 'card') ?? acts[0]; // reroll instead of passing
+  return argmax(moves, a => moveScore(s, a, rng));
+}
+
+/** How much the `normal` policy likes a dice move. */
+export function moveScore(s: GameState, a: Action, rng: Rng): number {
   const seat = seatOf(s, s.turn);
-  return argmax(moves, a => {
-    const h = s.horses[(a as { horse: number }).horse];
-    const to = target(s, h, s.dice)!;
-    let sc = rng() * 2 + to * 0.2;
-    if (h.pos === STABLE) sc += 30;
-    if (to > GATE) sc += 25;
-    if (to <= GATE) {
-      const occ = horseAt(s, absOf(seat, to));
-      if (occ && occ.owner !== s.turn) sc += 40 + occ.pos * 0.5;
-      sc += TILE_BIAS[s.tiles[absOf(seat, to)]] ?? 0;
-    }
-    return sc;
-  });
+  const h = s.horses[(a as { horse: number }).horse];
+  const to = target(s, h, s.dice)!;
+  let sc = rng() * 2 + to * 0.2;
+  if (h.pos === STABLE) sc += 30;
+  if (to > GATE) sc += 25;
+  if (to <= GATE) {
+    const occ = horseAt(s, absOf(seat, to));
+    if (occ && occ.owner !== s.turn) sc += 40 + occ.pos * 0.5;
+    sc += TILE_BIAS[s.tiles[absOf(seat, to)]] ?? 0;
+    if (s.duel?.traps.some(t => t.abs === absOf(seat, to) && t.owner !== s.turn)) sc -= 35; // unknown enemy trap
+  }
+  return sc;
 }
 
 const fixedDie = (d: number): Rng => () => (d - 0.5) / 6;

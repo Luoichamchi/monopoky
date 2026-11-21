@@ -21,3 +21,22 @@ export const TILE_ENGRAVING: Record<string, string> = {
   ice: 'M0-9V9 M-8-5 8 5 M-8 5 8-5 M-3-7l3 3 3-3 M-3 7l3-3 3 3',
   bomb: 'M3-5a7 7 0 1 1-4-1l1-3 4 1z M4-8q1-5 5-2 M-5 0l2-2',
 };
+
+/** Duel cards: placeholder art = a big emoji (to be replaced by illustrations in the card window). */
+export const DUEL_SKIN: Record<string, string> = {
+  phakhien: '🔨', tichluc: '🏇', giaitru: '✨', morong: '🔭', ne: '💨',
+  hoandoi: '🔄', xichchan: '⛓️', songma: '🐎', dobay: '🔍', phandon: '🪞',
+  bangphong: '🧊', daykeo: '🪢', luine: '↩️', dolai: '🎲', hapthu: '🧲',
+  cuopbai: '🃏', gioxo: '🌬️', hothuan: '🛡️', giap: '⛑️', batlui: '💫',
+  dotkich: '⚡', locxoay: '🌪️', xuatchuong: '🚪', miennhiem: '💠', hoagiai: '☯️',
+  doatvi: '👑', phongan: '🔒', dichchuyen: '🌌', xungphong: '🚀', chiemdoat: '🪄',
+  bhoandoi: '🔀', blienket: '🔗', bdoathon: '👻', bhoden: '🕳️', bbanggioi: '❄️', bdaochieu: '🔃',
+  l1: '⏳', l2: '♾️', l3: '🌩️', l4: '🏵️', l5: '🌠', l6: '☄️',
+};
+
+/** Card frame tint per kind (rulebook: Cản / Buff / Phản / Bẫy / Huyền thoại). */
+export const KIND_COLOR: Record<string, string> = { hex: '#e0697a', buff: '#5fc9a8', react: '#7fa8ff', trap: '#b58cff', legend: '#f2c14e' };
+export const KIND_LABEL: Record<string, string> = { hex: 'Cản', buff: 'Buff', react: 'Phản', trap: 'Bẫy', legend: 'Huyền thoại' };
+
+/** Little status badges over a horse (duel mode). */
+export const STATUS_ICON: Record<string, string> = { ice: '❄️', rev: '🔃', chain: '⛓️', guard: '🛡️', armor: '⛑️', immune: '💠' };

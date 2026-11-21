@@ -1,6 +1,6 @@
-# Rulebook — Chế độ Đấu bài (v0.5, bản thiết kế)
+# Rulebook — Chế độ Đấu bài (v0.6)
 
-Cờ cá ngựa truyền thống kết hợp bộ bài draft. Chế độ này chưa được lập trình. Chế độ "Lễ hội hỗn loạn" vẫn giữ nguyên.
+Cờ cá ngựa truyền thống kết hợp bộ bài draft. Đã lập trình: luật ở `src/core/variants/duel/`, test ở `test/duel.test.ts`. Chế độ "Lễ hội hỗn loạn" vẫn giữ nguyên.
 
 Tài liệu gồm 3 phần:
 - **Phần I — Định luật:** các nguyên tắc không được phá. Mọi lá bài, bẫy hay chế độ mở rộng về sau đều phải tuân theo. Lá bài nào mâu thuẫn với một định luật thì sửa lá bài, không sửa định luật.
@@ -180,7 +180,7 @@ Bộ bài tồn tại để ván đấu nhanh hơn chứ không chậm hơn. The
 |---|---|
 | **Giải Trừ** | **Xoá toàn bộ** mọi lớp, mọi loại khống chế trên 1 ngựa. Sau đó ngựa có thể đi ngay trong lần đổ này |
 | **Miễn Nhiễm** | **Không xoá** lớp đang có. Trong thời hạn, ngựa không nhận thêm lớp mới nào và không dính bẫy |
-| **Hộ Thuẫn** | Chặn theo **đòn**, không theo lớp. 1 lượt chặn đỡ trọn một lá hoặc một combo nhắm vào ngựa đó, dù đòn mang bao nhiêu lớp. Combo chia lớp cho nhiều ngựa thì mỗi ngựa tự đỡ phần của mình |
+| **Hộ Thuẫn** | Chặn theo **đòn**, không theo lớp. 1 lượt chặn đỡ trọn một lá hoặc một combo nhắm vào ngựa đó, dù đòn mang bao nhiêu lớp. Combo chia lớp cho nhiều ngựa thì mỗi ngựa tự đỡ phần của mình. Khi còn Hộ Thuẫn, ngựa không bị đá: không ai dừng được vào ô của nó |
 | **Lá Phản** | Huỷ cả lá hoặc combo trước khi lớp được thêm vào |
 
 Câu hỏi "một lá giải được bao nhiêu lượt khống chế" có câu trả lời: Giải Trừ xoá tất cả, tối đa 3 lớp mỗi loại. Miễn Nhiễm không xoá lớp nào, chỉ ngăn lớp mới.
@@ -195,7 +195,7 @@ Câu hỏi "một lá giải được bao nhiêu lượt khống chế" có câu
 | Kho bài chung | 88 lá: 4 lá ★ × 6 bản, 26 lá thường × 2 bản, 6 bẫy × 2 bản |
 | Bài mỗi người | 12 lá |
 | Cách chọn | Công khai, thứ tự kiểu rắn (1-2-3-4, rồi 4-3-2-1), mỗi lần chọn 1 lá |
-| Thời gian | 15 giây mỗi lượt chọn, hết giờ thì tự chọn |
+| Thời gian | 20 giây mỗi lượt chọn, hết giờ thì luật tự chọn ngẫu nhiên. Có nút "Tự chọn phần còn lại" |
 | Chơi nhanh | Có thể chọn 1 trong các bộ dựng sẵn thay vì draft |
 
 Lá huyền thoại không có trong kho draft.
@@ -209,7 +209,7 @@ Mỗi người xáo 12 lá của mình thành bộ bài riêng và rút 4 lá.
    - Quá 6 lá thì tự chọn bỏ 1 lá.
    - Hết bộ bài thì xáo đống bài đã bỏ của mình thành bộ mới.
 3. **Đổ** xúc xắc. Kiểm tra chuỗi 3 lần trùng mặt để nhận lá huyền thoại.
-4. **Đánh bài** (không bắt buộc, tối đa 1 lần mỗi lượt người chơi): lá đơn, combo, bẫy hoặc lá huyền thoại, theo đúng mặt vừa đổ. Nếu nhắm vào đối thủ, chủ ngựa bị nhắm có **5 giây** để phản.
+4. **Đánh bài** (không bắt buộc, tối đa 1 lần mỗi lượt người chơi): lá đơn, combo, bẫy hoặc lá huyền thoại, theo đúng mặt vừa đổ. Nếu nhắm vào đối thủ, chủ ngựa bị nhắm có **6 giây** để phản. Cửa sổ phản chỉ mở khi người đó đang cầm lá Phản đúng mặt.
 5. **Giao lượt ngựa:** chọn 1 ngựa. Ngựa bình thường thì đi theo luật truyền thống. Ngựa bị khống chế thì làm theo khống chế rồi giảm lớp (Định luật 11). Không có lựa chọn hợp lệ nào thì bỏ lượt. Ngựa dừng lại thì xét đá trước, bẫy sau.
 6. Đổ ra 6 thì được đổ thêm: quay lại bước 3, không rút thêm bài. Mỗi lần đổ thêm là một lượt ngựa mới. Chỉ được đánh bài ở lần đổ thêm nếu trong lượt người chơi chưa đánh lần nào.
 
@@ -233,7 +233,7 @@ Phân loại: **Cản** là lá nhắm vào đối thủ (bị phản được),
 |---|---|---|---|
 | Phá Khiên | Cản | 2 | Gỡ mọi Hộ Thuẫn, Giáp Bảo Hộ và Miễn Nhiễm khỏi 1 ngựa địch |
 | ★Tích Lực | Buff | 6 | 1 ngựa mình tiến theo bậc (bảng combo). Đánh đơn: tiến 1 ô |
-| Giải Trừ | Buff | 2 | Xoá toàn bộ lớp khống chế trên 1 ngựa mình, hoặc gỡ Phong Ấn khỏi chính mình |
+| Giải Trừ | Buff | 2 | Xoá toàn bộ lớp khống chế trên 1 ngựa mình |
 | ★Mở Rộng | Buff | 6 | Đánh đơn: rút 1 lá. Trong combo: nhân số ô hoặc phạm vi của 1 lá |
 | Né | Phản | 2 | Huỷ lá hoặc combo đang nhắm vào mình |
 
@@ -242,9 +242,9 @@ Phân loại: **Cản** là lá nhắm vào đối thủ (bị phản được),
 |---|---|---|---|
 | Hoán Đổi | Cản | 2 | Đổi chỗ 1 ngựa mình với 1 ngựa địch, cả hai trên đường và cách nhau tối đa 10 ô. Không đá ai |
 | Xích Chân | Cản | 2 | 1 ngựa địch nhận 2 lớp Xích Chân |
-| Song Mã | Buff | 2 | Lượt này 2 ngựa khác nhau của mình cùng đi theo xúc xắc |
+| Song Mã | Buff | 2 | Ngựa được chọn đi 2 ô theo xúc xắc ngay; sau đó vẫn đi thêm 1 ngựa khác như thường |
 | Dò Bẫy | Buff | 2 | Xem loại 1 bẫy bất kỳ. Nếu bẫy nằm trong 12 ô phía trước một ngựa mình thì được phá nó |
-| Phản Đòn | Phản | 2 | Hiệu ứng bị trả lại lên ngựa của người đánh (người phản chọn mục tiêu hợp lệ) |
+| Phản Đòn | Phản | 2 | Phần nhắm vào ngựa của bạn quay về ngựa đi đầu của người đánh; phần nhắm vào bạn quay về chính người đánh. Hoán Đổi, Đột Kích, Lốc Xoáy chỉ bị huỷ |
 
 #### Mặt 3
 | Lá | Loại | Bản | Hiệu ứng |
@@ -259,10 +259,10 @@ Phân loại: **Cản** là lá nhắm vào đối thủ (bị phản được),
 | Lá | Loại | Bản | Hiệu ứng |
 |---|---|---|---|
 | Cướp Bài | Cản | 2 | Lấy ngẫu nhiên 1 lá trên tay 1 đối thủ |
-| Gió Xô | Cản* | 2 | Đẩy 1 ngựa bất kỳ trên đường tiến tối đa 4 ô. Đẩy vào bẫy thì bẫy nổ. *Chỉ tính là đòn cản khi đẩy ngựa địch |
-| ★Hộ Thuẫn | Buff | 6 | Chặn đòn theo bậc: bị đá, hoặc trúng một lá hay combo Cản, dù mang bao nhiêu lớp. Không chặn bẫy. Tồn tại 3 lượt người chơi. Đánh đơn: chặn 1 đòn |
+| Gió Xô | Cản* | 2 | Đẩy 1 ngựa bất kỳ trên đường tiến tối đa 4 ô, không đá ai. Đẩy vào bẫy thì bẫy nổ. *Chỉ tính là đòn cản khi đẩy ngựa địch |
+| ★Hộ Thuẫn | Buff | 6 | Ngựa không bị đá khi còn lớp chặn; mỗi lá hay combo Cản trúng nó tiêu 1 lớp, dù mang bao nhiêu lớp khống chế. Không chặn bẫy. Tồn tại 3 lượt người chơi. Đánh đơn: chặn 1 đòn |
 | Giáp Bảo Hộ | Buff | 2 | 1 ngựa: chặn lần dính bẫy đầu tiên trong 3 lượt người chơi, và bẫy đó bị phá |
-| Bật Lùi | Phản | 2 | Huỷ lá đang nhắm vào mình; ngựa gần nhất của người đánh lùi 2 ô |
+| Bật Lùi | Phản | 2 | Huỷ lá đang nhắm vào mình; ngựa đi đầu của người đánh lùi 2 ô |
 
 #### Mặt 5
 | Lá | Loại | Bản | Hiệu ứng |
@@ -316,8 +316,8 @@ Tất cả chỉ nổ khi ngựa địch dừng đúng ô (Định luật 2).
 
 | Bẫy | Hiệu ứng | Chủ bẫy được lợi |
 |---|---|---|
-| **Hoán Đổi** | Chủ bẫy chọn 1 ngựa mình trên đường để đổi chỗ với ngựa dính bẫy | Có |
-| **Liên Kết** | Chủ bẫy nối 1 ngựa mình vào ngựa dính bẫy. Trong 2 lượt ngựa kế tiếp của ngựa dính bẫy, nó đi bao nhiêu ô thì ngựa nối đi bấy nhiêu ô (theo Định luật 6; ngựa nối đang bị đóng băng thì đứng yên) | Có |
+| **Hoán Đổi** | Ngựa đi sau cùng của chủ bẫy đổi chỗ với ngựa dính bẫy (luật tự chọn, không chờ chủ bẫy) | Có |
+| **Liên Kết** | Ngựa đi sau cùng của chủ bẫy được nối vào ngựa dính bẫy. Trong 2 lượt ngựa kế tiếp của ngựa dính bẫy, nó đi bao nhiêu ô thì ngựa nối đi bấy nhiêu ô (theo Định luật 6; ngựa nối đang bị đóng băng thì đứng yên) | Có |
 | **Đoạt Hồn** | Chủ bẫy lấy 2 lá ngẫu nhiên trên tay chủ ngựa dính bẫy; người đó không được đánh bài đến hết lượt người chơi kế tiếp | Có |
 | **Hố Đen** | Ngựa dính bẫy về chuồng | Không |
 | **Băng Giới** | Mọi ngựa không thuộc chủ bẫy trong vòng 3 ô quanh bẫy nhận 2 lớp băng | Không |
@@ -339,7 +339,9 @@ Tất cả chỉ nổ khi ngựa địch dừng đúng ô (Định luật 2).
 ## Phụ lục — Câu hỏi mở và việc cần đo
 
 - **[Thử] Đặt bẫy với mọi mặt** (Định luật 2.9) và **[Thử] Đoạt Vị** thay cho lá Trục Xuất cũ: cần chơi thử.
-- **Thời gian phản 5 giây:** cần kiểm tra trên điện thoại.
+- **Thời gian phản 6 giây:** cần kiểm tra trên điện thoại.
+- **Chia lớp trong combo** (Băng Phong, Hộ Thuẫn cho nhiều ngựa): luật hỗ trợ, nhưng giao diện hiện chỉ cho đặt cả combo lên một ngựa.
+- **Đo bằng bot (luật này, bot mức thường):** 2 người khoảng 99 lượt người chơi mỗi người (truyền thống 120), 4 người khoảng 134 (truyền thống 185). Bot đánh khoảng 21 lá mỗi ván, người chơi thật sẽ đánh nhiều hơn.
 - **Số liệu cần cân bằng bằng mô phỏng bot:** số ô của các lá, bảng bậc của lá ★, thời hạn bẫy, số bản trong kho draft. Mục tiêu là số lượt ở Định luật 10.
 - **Tần suất lá huyền thoại:** mô phỏng với luật truyền thống cho ra khoảng 2,9 bộ ba mỗi người mỗi ván 2 người. Vì mỗi lá chỉ có 1 bản, phần lớn bộ ba về sau sẽ chỉ cho 2 lá thường.
 - **Kỹ thuật:**

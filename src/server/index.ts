@@ -7,6 +7,7 @@ import { extname, resolve, sep } from 'node:path';
 import { Server, type Socket } from 'socket.io';
 import type { BotLevel, PlayerConfig } from '../core/types.ts';
 import { VARIANTS } from '../core/variants/index.ts';
+import { viewUpdate } from '../core/view.ts';
 import { GameSession, type Update } from '../session.ts';
 import { think } from './bots.ts';
 import { assignAvatars, BOT_NAMES, isAvatar, type RoomView, type SeatKind } from '../protocol.ts';
@@ -93,6 +94,21 @@ function view(r: Room, token: string): RoomView {
   };
 }
 
+/** Player index this browser plays (-1 = spectator): what it may see of hidden duel cards. */
+const playerFor = (r: Room, token: string) => {
+  const seat = r.seats.findIndex(s => s.token === token);
+  return seat >= 0 ? (r.playerOf[seat] ?? -1) : -1;
+};
+
+/** Send an update to everyone in the room, each with only what their seat may see (law 8). */
+function sendUpdate(r: Room, u: Update) {
+  if (!u.state.duel) return void io.to(r.id).emit('update', u);
+  for (const id of io.sockets.adapter.rooms.get(r.id) ?? []) {
+    const sock = io.sockets.sockets.get(id);
+    sock?.emit('update', viewUpdate(u, playerFor(r, sock.data.token)));
+  }
+}
+
 async function broadcastRoom(r: Room) {
   for (const sock of await io.in(r.id).fetchSockets()) sock.emit('room', view(r, sock.data.token));
 }
@@ -112,7 +128,7 @@ function startGame(r: Room) {
     players,
     u => {
       r.last = u;
-      io.to(r.id).emit('update', u);
+      sendUpdate(r, u);
     },
     Math.random,
     think, // expert bots search on worker threads
@@ -149,7 +165,7 @@ io.on('connection', (socket: Socket) => {
         r.session.setBot(p, undefined); // take the seat back from the stand-in bot
     }
     broadcastRoom(r);
-    if (r.last) socket.emit('update', { state: r.last.state, events: [] });
+    if (r.last) socket.emit('update', viewUpdate({ state: r.last.state, events: [] }, playerFor(r, token)));
   };
 
   socket.on('create', (msg, ack) => {

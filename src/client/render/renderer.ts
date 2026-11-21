@@ -10,7 +10,8 @@ export interface BoardRenderer {
   build(s: GameState): void; // draw a fresh board for this game
   sync(s: GameState): void; // snap every horse to the true state
   setPickable(ids: number[], onPick?: (id: number) => void, preview?: (id: number) => number | null): void;
-  animate(e: GameEvent): Promise<void>; // move / kick / tile / shield
+  setSquares(abs: number[], onPick?: (abs: number) => void): void; // duel: make track squares clickable (traps, destinations)
+  animate(e: GameEvent): Promise<void>; // move / kick / tile / shield / duel status, traps
   cheer(horse: number, icon: string, color: string): Promise<void>;
   setTurn(seat: number): void; // -1 = nobody
   follow?: boolean; // 3D only: the camera turns to the seat whose turn it is (absent = not supported)
